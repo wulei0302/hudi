@@ -18,6 +18,7 @@
 
 package org.apache.hudi.execution;
 
+import org.apache.hudi.common.model.HoodieAvroPayload;
 import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
@@ -269,7 +270,7 @@ public class TestBoundedInMemoryQueue extends HoodieClientTestHarness {
     // queue memory limit
     HoodieLazyInsertIterable.HoodieInsertValueGenResult payload =
         getTransformFunction(HoodieTestDataGenerator.AVRO_SCHEMA).apply((HoodieAvroRecord) hoodieRecords.get(0));
-    final long objSize = sizeEstimator.sizeEstimate(new Tuple2<>(payload.record, payload.insertValue));
+    final long objSize = sizeEstimator.sizeEstimate(new Tuple2<>(payload.record, ((HoodieAvroPayload)payload.record.getData()).getInsertValue(HoodieTestDataGenerator.AVRO_SCHEMA)));
     final long memoryLimitInBytes = 4 * objSize;
 
     // first let us throw exception from queueIterator reader and test that queueing thread

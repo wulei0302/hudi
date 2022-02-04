@@ -18,6 +18,19 @@
 
 package org.apache.hudi.io.storage;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
+
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.IndexedRecord;
@@ -64,7 +77,7 @@ import static org.apache.hudi.common.util.ValidationUtils.checkState;
  * <p>
  * {@link HoodieFileReader} implementation allowing to read from {@link HFile}.
  */
-public class HoodieHFileReader<R extends IndexedRecord> implements HoodieFileReader<R> {
+public class HoodieAvroHFileReader implements HoodieAvroFileReader {
 
   // TODO HoodieHFileReader right now tightly coupled to MT, we should break that coupling
   public static final String SCHEMA_KEY = "schema";
@@ -177,9 +190,7 @@ public class HoodieHFileReader<R extends IndexedRecord> implements HoodieFileRea
     }
   }
 
-  @SuppressWarnings("unchecked")
-  @Override
-  public ClosableIterator<R> getRecordIterator(Schema readerSchema) throws IOException {
+  public ClosableIterator<IndexedRecord> getRecordIterator(Schema readerSchema) throws IOException {
     // TODO eval whether seeking scanner would be faster than pread
     HFileScanner scanner = getHFileScanner(reader, false);
     return (ClosableIterator<R>) new RecordIterator(scanner, getSchema(), readerSchema);

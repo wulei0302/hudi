@@ -105,6 +105,17 @@ public class HoodieAvroUtils {
   public static final Schema RECORD_KEY_SCHEMA = initRecordKeySchema();
 
   /**
+   * TODO
+   */
+  public static Option<byte[]> recordToBytes(HoodieRecord record, Schema schema) throws IOException {
+    if (record instanceof HoodieAvroRecord) {
+      return ((HoodieAvroRecord<?>) record).asAvro(schema).map(HoodieAvroUtils::indexedRecordToBytes);
+    }
+
+    throw new UnsupportedOperationException(String.format("Unsupported type of record (%s)", record.getClass()));
+  }
+
+  /**
    * Convert a given avro record to bytes.
    */
   public static byte[] avroToBytes(GenericRecord record) {

@@ -23,6 +23,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.hadoop.fs.Path;
 import org.apache.hudi.client.WriteStatus;
+import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.engine.TaskContextSupplier;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.model.HoodieOperation;
@@ -55,7 +56,7 @@ public class HoodieCreateHandle<T extends HoodieRecordPayload, I, K, O> extends 
 
   private static final Logger LOG = LogManager.getLogger(HoodieCreateHandle.class);
 
-  protected final HoodieFileWriter<IndexedRecord> fileWriter;
+  protected final HoodieFileWriter fileWriter;
   protected final Path path;
   protected long recordsWritten = 0;
   protected long insertRecordsWritten = 0;
@@ -130,14 +131,11 @@ public class HoodieCreateHandle<T extends HoodieRecordPayload, I, K, O> extends 
    * Perform the actual writing of the given record into the backing file.
    */
   @Override
-  public void write(HoodieRecord record, Option<IndexedRecord> avroRecord) {
-    Option recordMetadata = ((HoodieRecordPayload) record.getData()).getMetadata();
-    if (HoodieOperation.isDelete(record.getOperation())) {
-      avroRecord = Option.empty();
-    }
+  protected void doWrite(HoodieRecord record, Schema schema, TypedProperties props) {
+    Option<Map<String, String>> recordMetadata = record.getMetadata();
     try {
-      if (avroRecord.isPresent()) {
-        if (avroRecord.get().equals(IGNORE_RECORD)) {
+      if (!HoodieOperation.isDelete(record.getOperation())) {
+        if (record.canBeIgnored()) {
           return;
         }
         // Convert GenericRecord to GenericRecord with hoodie commit metadata in schema
@@ -180,18 +178,14 @@ public class HoodieCreateHandle<T extends HoodieRecordPayload, I, K, O> extends 
     } else {
       keyIterator = recordMap.keySet().stream().iterator();
     }
-    try {
-      while (keyIterator.hasNext()) {
-        final String key = keyIterator.next();
-        HoodieRecord<T> record = recordMap.get(key);
-        if (useWriterSchema) {
-          write(record, record.getData().getInsertValue(tableSchemaWithMetaFields, config.getProps()));
-        } else {
-          write(record, record.getData().getInsertValue(tableSchema, config.getProps()));
-        }
+    while (keyIterator.hasNext()) {
+      final String key = keyIterator.next();
+      HoodieRecord<T> record = recordMap.get(key);
+      if (useWriterSchema) {
+        write(record, tableSchemaWithMetaFields, config.getProps());
+      } else {
+        write(record, tableSchema, config.getProps());
       }
-    } catch (IOException io) {
-      throw new HoodieInsertException("Failed to insert records for path " + path, io);
     }
   }
 

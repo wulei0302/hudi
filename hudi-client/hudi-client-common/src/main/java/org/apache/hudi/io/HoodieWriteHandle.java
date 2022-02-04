@@ -18,8 +18,13 @@
 
 package org.apache.hudi.io;
 
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.client.WriteStatus;
+import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.engine.TaskContextSupplier;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.model.HoodieRecord;
@@ -34,12 +39,6 @@ import org.apache.hudi.io.storage.HoodieFileWriter;
 import org.apache.hudi.io.storage.HoodieFileWriterFactory;
 import org.apache.hudi.table.HoodieTable;
 import org.apache.hudi.table.marker.WriteMarkersFactory;
-
-import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.generic.IndexedRecord;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
@@ -74,7 +73,7 @@ public abstract class HoodieWriteHandle<T extends HoodieRecordPayload, I, K, O> 
    * We can see the usage of IGNORE_RECORD in
    * org.apache.spark.sql.hudi.command.payload.ExpressionPayload
    */
-  public static IgnoreRecord IGNORE_RECORD = new IgnoreRecord();
+  public static GenericRecord IGNORE_RECORD = HoodieRecord.SENTINEL;
 
   /**
    * The specified schema of the table. ("specified" denotes that this is configured by the client,
@@ -208,22 +207,15 @@ public abstract class HoodieWriteHandle<T extends HoodieRecordPayload, I, K, O> 
   /**
    * Perform the actual writing of the given record into the backing file.
    */
-  public void write(HoodieRecord record, Option<IndexedRecord> insertValue) {
+  protected void doWrite(HoodieRecord record, Schema schema, TypedProperties props) {
     // NO_OP
   }
 
   /**
    * Perform the actual writing of the given record into the backing file.
    */
-  public void write(HoodieRecord record, Option<IndexedRecord> avroRecord, Option<Exception> exception) {
-    Option recordMetadata = ((HoodieRecordPayload) record.getData()).getMetadata();
-    if (exception.isPresent() && exception.get() instanceof Throwable) {
-      // Not throwing exception from here, since we don't want to fail the entire job for a single record
-      writeStatus.markFailure(record, exception.get(), recordMetadata);
-      LOG.error("Error writing record " + record, exception.get());
-    } else {
-      write(record, avroRecord);
-    }
+  public void write(HoodieRecord record, Schema schema, TypedProperties props) {
+    doWrite(record, schema, props);
   }
 
   /**
@@ -269,35 +261,7 @@ public abstract class HoodieWriteHandle<T extends HoodieRecordPayload, I, K, O> 
   }
 
   protected HoodieFileWriter createNewFileWriter(String instantTime, Path path, HoodieTable<T, I, K, O> hoodieTable,
-      HoodieWriteConfig config, Schema schema, TaskContextSupplier taskContextSupplier) throws IOException {
+                                                 HoodieWriteConfig config, Schema schema, TaskContextSupplier taskContextSupplier) throws IOException {
     return HoodieFileWriterFactory.getFileWriter(instantTime, path, hoodieTable, config, schema, taskContextSupplier);
-  }
-
-  private static class IgnoreRecord implements GenericRecord {
-
-    @Override
-    public void put(int i, Object v) {
-
-    }
-
-    @Override
-    public Object get(int i) {
-      return null;
-    }
-
-    @Override
-    public Schema getSchema() {
-      return null;
-    }
-
-    @Override
-    public void put(String key, Object v) {
-
-    }
-
-    @Override
-    public Object get(String key) {
-      return null;
-    }
   }
 }

@@ -29,7 +29,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Set;
 
-public interface HoodieFileReader<R extends IndexedRecord> extends AutoCloseable {
+public interface HoodieFileReader extends AutoCloseable {
 
   String[] readMinMaxRecordKeys();
 
@@ -39,16 +39,16 @@ public interface HoodieFileReader<R extends IndexedRecord> extends AutoCloseable
 
   ClosableIterator<R> getRecordIterator(Schema readerSchema) throws IOException;
 
-  default ClosableIterator<R> getRecordIterator() throws IOException {
-    return getRecordIterator(getSchema());
+  default ClosableIterator<HoodieRecord> getRecordIterator(Schema readerSchema, HoodieRecord.Mapper mapper) throws IOException;
+    return getRecordIterator(getSchema(), mapper);
   }
 
-  default Option<R> getRecordByKey(String key, Schema readerSchema) throws IOException {
+  default Option<HoodieRecord> getRecordByKey(String key, Schema readerSchema, HoodieRecord.Mapper mapper) throws IOException {
     throw new UnsupportedOperationException();
   }
 
-  default Option<R> getRecordByKey(String key) throws IOException {
-    return getRecordByKey(key, getSchema());
+  default Option<HoodieRecord> getRecordByKey(String key, HoodieRecord.Mapper mapper) throws IOException {
+    return getRecordByKey(key, getSchema(), mapper);
   }
 
   default ClosableIterator<R> getRecordsByKeysIterator(List<String> keys, Schema schema) throws IOException {

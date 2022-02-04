@@ -18,14 +18,21 @@
 
 package org.apache.hudi.common.model;
 
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.IndexedRecord;
+import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.util.CollectionUtils;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.collection.Pair;
+import org.apache.hudi.io.storage.HoodieFileWriter;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -223,6 +230,81 @@ public abstract class HoodieRecord<T> implements Serializable {
   public void checkState() {
     if (sealed) {
       throw new UnsupportedOperationException("Not allowed to modify after sealed");
+    }
+  }
+
+  public abstract void writeWithMetadata(HoodieFileWriter writer, Schema schema, Properties props) throws IOException;
+
+  public abstract void write(HoodieFileWriter writer, Schema schema, Properties props) throws IOException;
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  //
+  // NOTE: This method duplicates those ones of the HoodieRecordPayload and are placed here
+  //       for the duration of RFC-46 implementation, until migration off `HoodieRecordPayload`
+  //       is complete
+  //
+  // TODO cleanup
+
+  // NOTE: This method is assuming semantic that `preCombine` operation is bound to pick one or the other
+  //       object, and may not create a new one
+  public abstract HoodieRecord<T> preCombine(HoodieRecord<T> previousRecord);
+
+  // NOTE: This method is assuming semantic that only records bearing the same (partition, key) could
+  //       be combined
+  public abstract Option<HoodieRecord<T>> combineAndGetUpdateValue(HoodieRecord<T> previousRecord, Schema schema, Properties props) throws IOException;
+
+  public abstract HoodieRecord mergeWith(HoodieRecord other, Schema readerSchema, Schema writerSchema) throws IOException;
+
+  public abstract HoodieRecord rewriteRecord(Schema recordSchema, Schema targetSchema, TypedProperties props) throws IOException;
+
+  public abstract HoodieRecord addMetadataValues(Map<HoodieMetadataField, String> metadataValues) throws IOException;
+
+  public abstract HoodieRecord overrideMetadataValue(HoodieMetadataField metadataField, String value) throws IOException;
+
+  public abstract Option<Map<String, String>> getMetadata();
+
+  public abstract boolean canBeIgnored();
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  public static String generateSequenceId(String instantTime, int partitionId, long recordIndex) {
+    return instantTime + "_" + partitionId + "_" + recordIndex;
+  }
+
+  /**
+   * NOTE: This is temporary transition construct to be able to construct
+   *       HoodieRecord instances w/o excessive wiring into a lot of components
+   *       a lot of details that are irrelevant for these
+   * TODO remove
+   */
+  @FunctionalInterface
+  public interface Mapper {
+    HoodieRecord apply(IndexedRecord avroPayload);
+  }
+
+  private static class EmptyRecord implements GenericRecord {
+    private EmptyRecord() {}
+
+    @Override
+    public void put(int i, Object v) {}
+
+    @Override
+    public Object get(int i) {
+      return null;
+    }
+
+    @Override
+    public Schema getSchema() {
+      return null;
+    }
+
+    @Override
+    public void put(String key, Object v) {}
+
+    @Override
+    public Object get(String key) {
+      return null;
     }
   }
 }

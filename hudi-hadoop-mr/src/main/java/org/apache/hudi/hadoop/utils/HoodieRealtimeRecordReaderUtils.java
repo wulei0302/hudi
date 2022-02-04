@@ -71,7 +71,7 @@ public class HoodieRealtimeRecordReaderUtils {
    */
   public static Schema readSchema(Configuration conf, Path filePath) {
     try {
-      HoodieFileReader storageReader = HoodieFileReaderFactory.getFileReader(conf, filePath);
+      HoodieAvroFileReader storageReader = HoodieFileReaderFactory.getFileReader(conf, filePath);
       return storageReader.getSchema();
     } catch (IOException e) {
       throw new HoodieIOException("Failed to read schema from " + filePath, e);

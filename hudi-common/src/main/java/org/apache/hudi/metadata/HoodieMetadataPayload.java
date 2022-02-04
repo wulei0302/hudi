@@ -118,7 +118,7 @@ public class HoodieMetadataPayload implements HoodieRecordPayload<HoodieMetadata
   protected static final int METADATA_TYPE_BLOOM_FILTER = 4;
 
   // HoodieMetadata schema field ids
-  public static final String KEY_FIELD_NAME = HoodieHFileReader.KEY_FIELD_NAME;
+  public static final String KEY_FIELD_NAME = HoodieAvroHFileReader.KEY_FIELD_NAME;
   public static final String SCHEMA_FIELD_NAME_TYPE = "type";
   public static final String SCHEMA_FIELD_NAME_METADATA = "filesystemMetadata";
   public static final String SCHEMA_FIELD_ID_COLUMN_STATS = "ColumnStatsMetadata";

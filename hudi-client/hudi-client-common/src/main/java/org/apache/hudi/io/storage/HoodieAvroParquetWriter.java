@@ -26,7 +26,7 @@ import org.apache.hudi.common.engine.TaskContextSupplier;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.fs.HoodieWrapperFileSystem;
 import org.apache.hudi.common.model.HoodieKey;
-import org.apache.hudi.common.model.HoodieRecordPayload;
+import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
 
@@ -42,8 +42,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * ATTENTION: HoodieParquetWriter is not thread safe and developer should take care of the order of write and close
  */
 @NotThreadSafe
-public class HoodieParquetWriter<T extends HoodieRecordPayload, R extends IndexedRecord>
-    extends ParquetWriter<IndexedRecord> implements HoodieFileWriter<R> {
+public class HoodieAvroParquetWriter extends ParquetWriter<IndexedRecord> implements HoodieAvroFileWriter {
 
   private static AtomicLong recordIndex = new AtomicLong(1);
 
@@ -55,12 +54,12 @@ public class HoodieParquetWriter<T extends HoodieRecordPayload, R extends Indexe
   private final TaskContextSupplier taskContextSupplier;
   private final boolean populateMetaFields;
 
-  public HoodieParquetWriter(String instantTime,
-                             Path file,
-                             HoodieAvroParquetConfig parquetConfig,
-                             Schema schema,
-                             TaskContextSupplier taskContextSupplier,
-                             boolean populateMetaFields) throws IOException {
+  public HoodieAvroParquetWriter(String instantTime,
+                                 Path file,
+                                 HoodieAvroParquetConfig parquetConfig,
+                                 Schema schema,
+                                 TaskContextSupplier taskContextSupplier,
+                                 boolean populateMetaFields) throws IOException {
     super(HoodieWrapperFileSystem.convertToHoodiePath(file, parquetConfig.getHadoopConf()),
         ParquetFileWriter.Mode.CREATE,
         parquetConfig.getWriteSupport(),
@@ -88,7 +87,7 @@ public class HoodieParquetWriter<T extends HoodieRecordPayload, R extends Indexe
   }
 
   @Override
-  public void writeAvroWithMetadata(HoodieKey key, R avroRecord) throws IOException {
+  public void writeWithMetadata(HoodieKey key, IndexedRecord avroRecord, HoodieRecord record) throws IOException {
     if (populateMetaFields) {
       prepRecordWithMetadata(key, avroRecord, instantTime,
           taskContextSupplier.getPartitionIdSupplier().get(), recordIndex, file.getName());
@@ -105,7 +104,7 @@ public class HoodieParquetWriter<T extends HoodieRecordPayload, R extends Indexe
   }
 
   @Override
-  public void writeAvro(String key, IndexedRecord object) throws IOException {
+  public void write(String key, IndexedRecord object) throws IOException {
     super.write(object);
     if (populateMetaFields) {
       writeSupport.add(key);

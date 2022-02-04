@@ -68,7 +68,7 @@ import static org.apache.hudi.common.testutils.FileSystemTestUtils.RANDOM;
 import static org.apache.hudi.common.testutils.SchemaTestUtil.getSchemaFromResource;
 import static org.apache.hudi.common.util.CollectionUtils.toStream;
 import static org.apache.hudi.io.storage.HoodieHFileConfig.HFILE_COMPARATOR;
-import static org.apache.hudi.io.storage.HoodieHFileReader.SCHEMA_KEY;
+import static org.apache.hudi.io.storage.HoodieAvroHFileReader.SCHEMA_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -143,7 +143,7 @@ public class TestHoodieHFileReaderWriter extends TestHoodieReaderWriterBase {
   @MethodSource("populateMetaFieldsAndTestAvroWithMeta")
   public void testWriteReadHFileWithMetaFields(boolean populateMetaFields, boolean testAvroWithMeta) throws Exception {
     Schema avroSchema = getSchemaFromResource(TestHoodieOrcReaderWriter.class, "/exampleSchemaWithMetaFields.avsc");
-    HoodieFileWriter<GenericRecord> writer = createWriter(avroSchema, populateMetaFields);
+    HoodieAvroHFileWriter writer = createWriter(avroSchema, populateMetaFields);
     List<String> keys = new ArrayList<>();
     Map<String, GenericRecord> recordMap = new TreeMap<>();
     for (int i = 0; i < 100; i++) {
@@ -166,8 +166,8 @@ public class TestHoodieHFileReaderWriter extends TestHoodieReaderWriterBase {
     writer.close();
 
     Configuration conf = new Configuration();
-    HoodieHFileReader hoodieHFileReader = (HoodieHFileReader) createReader(conf);
-    List<IndexedRecord> records = HoodieHFileReader.readAllRecords(hoodieHFileReader);
+    HoodieAvroHFileReader hoodieHFileReader = (HoodieAvroHFileReader) createReader(conf);
+    List<IndexedRecord> records = HoodieAvroHFileReader.readAllRecords(hoodieHFileReader);
     assertEquals(new ArrayList<>(recordMap.values()), records);
 
     hoodieHFileReader.close();
@@ -189,8 +189,10 @@ public class TestHoodieHFileReaderWriter extends TestHoodieReaderWriterBase {
       result.forEach(entry -> {
         if (populateMetaFields && testAvroWithMeta) {
           assertNotNull(entry.get(HoodieRecord.RECORD_KEY_METADATA_FIELD));
+          assertNotNull(((GenericRecord)entry.getSecond()).get(HoodieRecord.RECORD_KEY_METADATA_FIELD));
         } else {
           assertNull(entry.get(HoodieRecord.RECORD_KEY_METADATA_FIELD));
+          assertNull(((GenericRecord)entry.getSecond()).get(HoodieRecord.RECORD_KEY_METADATA_FIELD));
         }
       });
       hoodieHFileReader.close();

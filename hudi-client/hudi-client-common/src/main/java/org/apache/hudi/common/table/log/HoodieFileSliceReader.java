@@ -19,6 +19,8 @@
 
 package org.apache.hudi.common.table.log;
 
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.util.Option;
@@ -26,10 +28,7 @@ import org.apache.hudi.common.util.SpillableMapUtils;
 import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodiePayloadConfig;
 import org.apache.hudi.exception.HoodieIOException;
-import org.apache.hudi.io.storage.HoodieFileReader;
-
-import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericRecord;
+import org.apache.hudi.io.storage.HoodieAvroFileReader;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -42,7 +41,7 @@ public class HoodieFileSliceReader<T extends HoodieRecordPayload> implements Ite
   private final Iterator<HoodieRecord<T>> recordsIterator;
 
   public static HoodieFileSliceReader getFileSliceReader(
-      Option<HoodieFileReader> baseFileReader, HoodieMergedLogRecordScanner scanner, Schema schema, String payloadClass,
+      Option<HoodieAvroFileReader> baseFileReader, HoodieMergedLogRecordScanner scanner, Schema schema, String payloadClass,
       String preCombineField, Option<Pair<String, String>> simpleKeyGenFieldsOpt) throws IOException {
     if (baseFileReader.isPresent()) {
       Iterator baseIterator = baseFileReader.get().getRecordIterator(schema);
@@ -68,9 +67,11 @@ public class HoodieFileSliceReader<T extends HoodieRecordPayload> implements Ite
     }
   }
 
-  private static HoodieRecord<? extends HoodieRecordPayload> transform(
-      GenericRecord record, HoodieMergedLogRecordScanner scanner, String payloadClass,
-      String preCombineField, Option<Pair<String, String>> simpleKeyGenFieldsOpt) {
+  private static HoodieRecord<? extends HoodieRecordPayload> transform(GenericRecord record,
+                                                                       HoodieMergedLogRecordScanner scanner,
+                                                                       String payloadClass,
+                                                                       String preCombineField,
+                                                                       Option<Pair<String, String>> simpleKeyGenFieldsOpt) {
     return simpleKeyGenFieldsOpt.isPresent()
         ? SpillableMapUtils.convertToHoodieRecordPayload(record,
         payloadClass, preCombineField, simpleKeyGenFieldsOpt.get(), scanner.isWithOperationField(), Option.empty())

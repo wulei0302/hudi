@@ -36,14 +36,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-public class HoodieParquetReader<R extends IndexedRecord> implements HoodieFileReader<R> {
-  
+public class HoodieAvroParquetReader implements HoodieAvroFileReader {
+
   private final Path path;
   private final Configuration conf;
   private final BaseFileUtils parquetUtils;
   private List<ParquetReaderIterator> readerIterators = new ArrayList<>();
 
-  public HoodieParquetReader(Configuration configuration, Path path) {
+  public HoodieAvroParquetReader(Configuration configuration, Path path) {
     this.conf = configuration;
     this.path = path;
     this.parquetUtils = BaseFileUtils.getInstance(HoodieFileFormat.PARQUET);
@@ -65,7 +65,7 @@ public class HoodieParquetReader<R extends IndexedRecord> implements HoodieFileR
   }
 
   @Override
-  public ClosableIterator<R> getRecordIterator(Schema schema) throws IOException {
+  public ClosableIterator<IndexedRecord> getRecordIterator(Schema schema) throws IOException {
     AvroReadSupport.setAvroReadSchema(conf, schema);
     ParquetReader<R> reader = AvroParquetReader.<R>builder(path).withConf(conf).build();
     ParquetReaderIterator<R> parquetReaderIterator = new ParquetReaderIterator<>(reader);

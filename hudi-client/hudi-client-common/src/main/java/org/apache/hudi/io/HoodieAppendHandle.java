@@ -19,10 +19,7 @@
 package org.apache.hudi.io;
 
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.hadoop.fs.Path;
-import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.client.WriteStatus;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.engine.TaskContextSupplier;
@@ -66,6 +63,7 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import javax.annotation.Nonnull;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -73,7 +71,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -354,7 +351,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload, I, K, O> extends 
     statuses.add(this.writeStatus);
   }
 
-  private void processAppendResult(AppendResult result, List<IndexedRecord> recordList) {
+  private void processAppendResult(AppendResult result, List<HoodieRecord> recordList) {
     HoodieDeltaWriteStat stat = (HoodieDeltaWriteStat) this.writeStatus.getStat();
 
     if (stat.getPath() == null) {
@@ -388,7 +385,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload, I, K, O> extends 
       }
 
       Map<String, HoodieColumnRangeMetadata<Comparable>> columnRangesMetadataMap =
-          collectColumnRangeMetadata(recordList, fieldsToIndex, stat.getPath());
+          collectColumnRangeMetadata(recordList, fieldsToIndex, stat.getPath(), tableSchema, config.getProps());
 
       stat.setRecordsStats(columnRangesMetadataMap);
     }
@@ -400,7 +397,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload, I, K, O> extends 
     timer.startTimer();
   }
 
-  public void doAppend() {
+  public void doAppend() throws IOException {
     while (recordItr.hasNext()) {
       HoodieRecord record = recordItr.next();
       init(record);
@@ -515,7 +512,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload, I, K, O> extends 
     return true;
   }
 
-  private void writeToBuffer(HoodieRecord<T> record) {
+  private void writeToBuffer(HoodieRecord<T> record) throws IOException {
     if (!partitionPath.equals(record.getPartitionPath())) {
       HoodieUpsertException failureEx = new HoodieUpsertException("mismatched partition path, record partition: "
           + record.getPartitionPath() + " but trying to insert into partition: " + partitionPath);
@@ -531,10 +528,10 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload, I, K, O> extends 
     }
     // fetch the ordering val first in case the record was deflated.
     final Comparable<?> orderingVal = record.getData().getOrderingValue();
-    Option<HoodieRecord> indexedRecord = getIndexedRecord(record);
+    Option<HoodieRecord> indexedRecord = prepareRecord(record);
     if (indexedRecord.isPresent()) {
       // Skip the ignored record.
-      if (!indexedRecord.get().equals(IGNORE_RECORD)) {
+      if (!indexedRecord.get().isIgnoredRecord(tableSchema, config.getProps())) {
         recordList.add(indexedRecord.get());
       }
     } else {

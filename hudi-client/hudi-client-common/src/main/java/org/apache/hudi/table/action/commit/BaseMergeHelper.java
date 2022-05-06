@@ -26,7 +26,6 @@ import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.client.utils.MergingIterator;
 import org.apache.hudi.common.model.HoodieBaseFile;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.table.HoodieTableConfig;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.SpillableMapUtils;
@@ -46,7 +45,7 @@ import java.util.Iterator;
 /**
  * Helper to read records from previous version of base file and run Merge.
  */
-public abstract class BaseMergeHelper<T extends HoodieRecordPayload, I, K, O> {
+public abstract class BaseMergeHelper<T, I, K, O> {
 
   /**
    * Read records from previous version of base file and merge.
@@ -127,7 +126,7 @@ public abstract class BaseMergeHelper<T extends HoodieRecordPayload, I, K, O> {
   /**
    * Consumer that dequeues records from queue and sends to Merge Handle.
    */
-  protected static class UpdateHandler extends BoundedInMemoryQueueConsumer<GenericRecord, Void> {
+  protected static class UpdateHandler extends BoundedInMemoryQueueConsumer<HoodieRecord, Void> {
 
     private final HoodieMergeHandle upsertHandle;
 
@@ -136,7 +135,7 @@ public abstract class BaseMergeHelper<T extends HoodieRecordPayload, I, K, O> {
     }
 
     @Override
-    protected void consumeOneRecord(GenericRecord record) {
+    protected void consumeOneRecord(HoodieRecord record) {
       upsertHandle.write(record);
     }
 

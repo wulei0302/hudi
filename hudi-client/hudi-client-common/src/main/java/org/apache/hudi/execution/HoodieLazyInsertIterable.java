@@ -38,7 +38,7 @@ import java.util.function.Function;
 /**
  * Lazy Iterable, that writes a stream of HoodieRecords sorted by the partitionPath, into new files.
  */
-public abstract class HoodieLazyInsertIterable<T extends HoodieRecordPayload>
+public abstract class HoodieLazyInsertIterable<T>
     extends LazyIterableIterator<HoodieRecord<T>, List<WriteStatus>> {
 
   protected final HoodieWriteConfig hoodieConfig;

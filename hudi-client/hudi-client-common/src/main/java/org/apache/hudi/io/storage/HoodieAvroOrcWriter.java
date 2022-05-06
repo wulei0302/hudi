@@ -29,8 +29,6 @@ import org.apache.hudi.common.engine.TaskContextSupplier;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.fs.HoodieWrapperFileSystem;
 import org.apache.hudi.common.model.HoodieKey;
-import org.apache.hudi.common.model.HoodieRecordPayload;
-import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.util.AvroOrcUtils;
 import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
@@ -95,10 +93,10 @@ public class HoodieAvroOrcWriter implements HoodieAvroFileWriter, Closeable {
   }
 
   @Override
-  public void writeWithMetadata(HoodieKey key, IndexedRecord avroRecord, HoodieRecord record) throws IOException {
-    prepRecordWithMetadata(avroRecord, record, instantTime,
+  public void writeAvroWithMetadata(HoodieKey key, IndexedRecord avroRecord) throws IOException {
+    prepRecordWithMetadata(key, avroRecord, instantTime,
         taskContextSupplier.getPartitionIdSupplier().get(), RECORD_INDEX, file.getName());
-    write(record.getRecordKey(), avroRecord);
+    writeAvro(key.getRecordKey(), avroRecord);
   }
 
   @Override
@@ -107,7 +105,7 @@ public class HoodieAvroOrcWriter implements HoodieAvroFileWriter, Closeable {
   }
 
   @Override
-  public void write(String recordKey, IndexedRecord object) throws IOException {
+  public void writeAvro(String recordKey, IndexedRecord object) throws IOException {
     for (int col = 0; col < batch.numCols; col++) {
       ColumnVector colVector = batch.cols[col];
       final String thisField = fieldNames.get(col);

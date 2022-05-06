@@ -36,7 +36,6 @@ import org.apache.hudi.common.engine.TaskContextSupplier;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.fs.HoodieWrapperFileSystem;
 import org.apache.hudi.common.model.HoodieKey;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.StringUtils;
 
@@ -126,7 +125,7 @@ public class HoodieAvroHFileWriter
   }
 
   @Override
-  public void write(String recordKey, IndexedRecord record) throws IOException {
+  public void writeAvro(String recordKey, IndexedRecord record) throws IOException {
     byte[] value = null;
     boolean isRecordSerialized = false;
     if (keyFieldSchema.isPresent()) {

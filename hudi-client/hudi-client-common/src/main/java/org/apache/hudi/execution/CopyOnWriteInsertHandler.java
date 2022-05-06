@@ -22,7 +22,6 @@ import org.apache.hudi.client.WriteStatus;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.engine.TaskContextSupplier;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.util.queue.BoundedInMemoryQueueConsumer;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.execution.HoodieLazyInsertIterable.HoodieInsertValueGenResult;
@@ -38,7 +37,7 @@ import java.util.Map;
 /**
  * Consumes stream of hoodie records from in-memory queue and writes to one or more create-handles.
  */
-public class CopyOnWriteInsertHandler<T extends HoodieRecordPayload>
+public class CopyOnWriteInsertHandler<T>
     extends BoundedInMemoryQueueConsumer<HoodieInsertValueGenResult<HoodieRecord>, List<WriteStatus>> {
 
   private HoodieWriteConfig config;

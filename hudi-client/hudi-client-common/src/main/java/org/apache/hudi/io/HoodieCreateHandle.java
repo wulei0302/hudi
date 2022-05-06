@@ -19,8 +19,6 @@
 package org.apache.hudi.io;
 
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.hadoop.fs.Path;
 import org.apache.hudi.client.WriteStatus;
 import org.apache.hudi.common.config.TypedProperties;
@@ -30,7 +28,6 @@ import org.apache.hudi.common.model.HoodieOperation;
 import org.apache.hudi.common.model.HoodiePartitionMetadata;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordLocation;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.model.HoodieWriteStat;
 import org.apache.hudi.common.model.HoodieWriteStat.RuntimeStats;
 import org.apache.hudi.common.model.IOType;
@@ -52,7 +49,7 @@ import java.util.List;
 import java.util.Map;
 
 @NotThreadSafe
-public class HoodieCreateHandle<T extends HoodieRecordPayload, I, K, O> extends HoodieWriteHandle<T, I, K, O> {
+public class HoodieCreateHandle<T, I, K, O> extends HoodieWriteHandle<T, I, K, O> {
 
   private static final Logger LOG = LogManager.getLogger(HoodieCreateHandle.class);
 
@@ -140,10 +137,9 @@ public class HoodieCreateHandle<T extends HoodieRecordPayload, I, K, O> extends 
         }
         // Convert GenericRecord to GenericRecord with hoodie commit metadata in schema
         if (preserveMetadata) {
-          fileWriter.writeAvro(record.getRecordKey(),
-              rewriteRecordWithMetadata((GenericRecord) avroRecord.get(), path.getName()));
+          fileWriter.write(record.rewriteRecordWithMetadata(schema, config.getProps(), schemaOnReadEnabled, writeSchemaWithMetaFields, path.getName()), writeSchemaWithMetaFields);
         } else {
-          fileWriter.writeAvroWithMetadata(record.getKey(), rewriteRecord((GenericRecord) avroRecord.get()));
+          fileWriter.writeWithMetadata(record.rewriteRecordWithMetadata(schema, config.getProps(), schemaOnReadEnabled, writeSchemaWithMetaFields, path.getName()), writeSchemaWithMetaFields);
         }
         // update the new location of record, so we know where to find it next
         record.unseal();

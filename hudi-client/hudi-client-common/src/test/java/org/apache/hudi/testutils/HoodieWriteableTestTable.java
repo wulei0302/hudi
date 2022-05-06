@@ -123,10 +123,10 @@ public class HoodieWriteableTestTable extends HoodieMetadataTestTable {
           if (populateMetaFields) {
             HoodieAvroUtils.addCommitMetadataToRecord(avroRecord, currentInstantTime, String.valueOf(seqId++));
             HoodieAvroUtils.addHoodieKeyToRecord(avroRecord, record.getRecordKey(), record.getPartitionPath(), fileName);
-            writer.write(record.getRecordKey(), avroRecord);
+            writer.writeAvro(record.getRecordKey(), avroRecord);
             filter.add(record.getRecordKey());
           } else {
-            writer.write(record.getRecordKey(), avroRecord);
+            writer.writeAvro(record.getRecordKey(), avroRecord);
           }
         }
       }
@@ -145,7 +145,7 @@ public class HoodieWriteableTestTable extends HoodieMetadataTestTable {
           GenericRecord avroRecord = (GenericRecord) ((HoodieRecordPayload) record.getData()).getInsertValue(schema).get();
           HoodieAvroUtils.addCommitMetadataToRecord(avroRecord, currentInstantTime, String.valueOf(seqId++));
           HoodieAvroUtils.addHoodieKeyToRecord(avroRecord, record.getRecordKey(), record.getPartitionPath(), fileName);
-          writer.write(record.getRecordKey(), avroRecord);
+          writer.writeAvro(record.getRecordKey(), avroRecord);
           filter.add(record.getRecordKey());
         }
       }

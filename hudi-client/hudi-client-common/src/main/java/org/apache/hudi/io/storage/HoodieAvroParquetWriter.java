@@ -32,6 +32,8 @@ import org.apache.parquet.hadoop.ParquetWriter;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -87,7 +89,7 @@ public class HoodieAvroParquetWriter extends ParquetWriter<IndexedRecord> implem
   }
 
   @Override
-  public void writeWithMetadata(HoodieKey key, IndexedRecord avroRecord, HoodieRecord record) throws IOException {
+  public void writeAvroWithMetadata(HoodieKey key, IndexedRecord avroRecord) throws IOException {
     if (populateMetaFields) {
       prepRecordWithMetadata(key, avroRecord, instantTime,
           taskContextSupplier.getPartitionIdSupplier().get(), recordIndex, file.getName());
@@ -104,7 +106,7 @@ public class HoodieAvroParquetWriter extends ParquetWriter<IndexedRecord> implem
   }
 
   @Override
-  public void write(String key, IndexedRecord object) throws IOException {
+  public void writeAvro(String key, IndexedRecord object) throws IOException {
     super.write(object);
     if (populateMetaFields) {
       writeSupport.add(key);

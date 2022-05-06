@@ -27,10 +27,10 @@ import org.apache.hudi.cli.functional.CLIFunctionalTestHarness;
 import org.apache.hudi.cli.testutils.HoodieTestCommitMetadataGenerator;
 import org.apache.hudi.common.config.HoodieCommonConfig;
 import org.apache.hudi.common.fs.FSUtils;
+import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieIndexRecord;
 import org.apache.hudi.common.model.HoodieLogFile;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.common.table.log.HoodieLogFormat;
 import org.apache.hudi.common.table.log.HoodieMergedLogRecordScanner;
@@ -224,12 +224,12 @@ public class TestHoodieLogFileCommand extends CLIFunctionalTestHarness {
         .withBitCaskDiskMapCompressionEnabled(HoodieCommonConfig.DISK_MAP_BITCASK_COMPRESSION_ENABLED.defaultValue())
         .build();
 
-    Iterator<HoodieRecord<? extends HoodieRecordPayload>> records = scanner.iterator();
+    Iterator<HoodieRecord> records = scanner.iterator();
     int num = 0;
     int maxSize = 10;
     List<IndexedRecord> indexRecords = new ArrayList<>();
     while (records.hasNext() && num < maxSize) {
-      Option<IndexedRecord> hoodieRecord = records.next().getData().getInsertValue(schema);
+      Option<IndexedRecord> hoodieRecord = ((HoodieAvroRecord)records.next()).getData().getInsertValue(schema);
       indexRecords.add(hoodieRecord.get());
       num++;
     }

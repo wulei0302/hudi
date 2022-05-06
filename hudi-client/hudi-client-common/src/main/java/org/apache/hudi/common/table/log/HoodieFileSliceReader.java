@@ -37,7 +37,7 @@ import java.util.stream.StreamSupport;
 /**
  * Reads records from base file and merges any updates from log files and provides iterable over all records in the file slice.
  */
-public class HoodieFileSliceReader<T extends HoodieRecordPayload> implements Iterator<HoodieRecord<T>> {
+public class HoodieFileSliceReader<T> implements Iterator<HoodieRecord<T>> {
   private final Iterator<HoodieRecord<T>> recordsIterator;
 
   public static HoodieFileSliceReader getFileSliceReader(
@@ -47,18 +47,18 @@ public class HoodieFileSliceReader<T extends HoodieRecordPayload> implements Ite
       Iterator baseIterator = baseFileReader.get().getRecordIterator(schema);
       while (baseIterator.hasNext()) {
         GenericRecord record = (GenericRecord) baseIterator.next();
-        HoodieRecord<? extends HoodieRecordPayload> hoodieRecord = transform(
+        HoodieRecord hoodieRecord = transform(
             record, scanner, payloadClass, preCombineField, simpleKeyGenFieldsOpt);
         scanner.processNextRecord(hoodieRecord);
       }
       return new HoodieFileSliceReader(scanner.iterator());
     } else {
-      Iterable<HoodieRecord<? extends HoodieRecordPayload>> iterable = () -> scanner.iterator();
+      Iterable<HoodieRecord> iterable = () -> scanner.iterator();
       HoodiePayloadConfig payloadConfig = HoodiePayloadConfig.newBuilder().withPayloadOrderingField(preCombineField).build();
       return new HoodieFileSliceReader(StreamSupport.stream(iterable.spliterator(), false)
           .map(e -> {
             try {
-              GenericRecord record = (GenericRecord) e.getData().getInsertValue(schema, payloadConfig.getProps()).get();
+              GenericRecord record = (GenericRecord) ((HoodieRecordPayload)e.getData()).getInsertValue(schema, payloadConfig.getProps()).get();
               return transform(record, scanner, payloadClass, preCombineField, simpleKeyGenFieldsOpt);
             } catch (IOException io) {
               throw new HoodieIOException("Error while creating reader for file slice with no base file.", io);
@@ -67,7 +67,7 @@ public class HoodieFileSliceReader<T extends HoodieRecordPayload> implements Ite
     }
   }
 
-  private static HoodieRecord<? extends HoodieRecordPayload> transform(GenericRecord record,
+  private static HoodieRecord transform(GenericRecord record,
                                                                        HoodieMergedLogRecordScanner scanner,
                                                                        String payloadClass,
                                                                        String preCombineField,

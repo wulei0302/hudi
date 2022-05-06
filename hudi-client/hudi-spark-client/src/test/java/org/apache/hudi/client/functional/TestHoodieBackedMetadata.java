@@ -739,7 +739,7 @@ public class TestHoodieBackedMetadata extends TestHoodieMetadataBase {
     HoodieBaseFile baseFile = fileSlices.get(0).getBaseFile().get();
     HoodieAvroHFileReader hoodieHFileReader = new HoodieAvroHFileReader(context.getHadoopConf().get(), new Path(baseFile.getPath()),
         new CacheConfig(context.getHadoopConf().get()));
-    List<IndexedRecord> records = HoodieHFileReader.readAllRecords(hoodieHFileReader);
+    List<IndexedRecord> records = HoodieAvroHFileReader.readAllRecords(hoodieHFileReader);
     records.forEach(entry -> {
       if (populateMetaFields) {
         assertNotNull(((GenericRecord) entry).get(HoodieRecord.RECORD_KEY_METADATA_FIELD));
@@ -984,9 +984,9 @@ public class TestHoodieBackedMetadata extends TestHoodieMetadataBase {
         while (logFileReader.hasNext()) {
           HoodieLogBlock logBlock = logFileReader.next();
           if (logBlock instanceof HoodieDataBlock) {
-            try (ClosableIterator<IndexedRecord> recordItr = ((HoodieDataBlock) logBlock).getRecordIterator()) {
+            try (ClosableIterator<HoodieRecord> recordItr = ((HoodieDataBlock) logBlock).getRecordIterator(HoodieIndexRecord::new)) {
               recordItr.forEachRemaining(indexRecord -> {
-                final GenericRecord record = (GenericRecord) indexRecord;
+                final GenericRecord record = (GenericRecord) indexRecord.getData();
                 if (enableMetaFields) {
                   // Metadata table records should have meta fields!
                   assertNotNull(record.get(HoodieRecord.RECORD_KEY_METADATA_FIELD));
@@ -1043,7 +1043,7 @@ public class TestHoodieBackedMetadata extends TestHoodieMetadataBase {
       logRecordReader.scan();
     }, "Metadata log records materialization failed");
 
-    for (Map.Entry<String, HoodieRecord<? extends HoodieRecordPayload>> entry : logRecordReader.getRecords().entrySet()) {
+    for (Map.Entry<String, HoodieRecord> entry : logRecordReader.getRecords().entrySet()) {
       assertFalse(entry.getKey().isEmpty());
       assertFalse(entry.getValue().getRecordKey().isEmpty());
       assertEquals(entry.getKey(), entry.getValue().getRecordKey());
@@ -1070,7 +1070,7 @@ public class TestHoodieBackedMetadata extends TestHoodieMetadataBase {
     HoodieAvroHFileReader hoodieHFileReader = new HoodieAvroHFileReader(context.getHadoopConf().get(),
         new Path(baseFile.getPath()),
         new CacheConfig(context.getHadoopConf().get()));
-    List<IndexedRecord> records = HoodieHFileReader.readAllRecords(hoodieHFileReader);
+    List<IndexedRecord> records = HoodieAvroHFileReader.readAllRecords(hoodieHFileReader);
     records.forEach(entry -> {
       if (enableMetaFields) {
         assertNotNull(((GenericRecord) entry).get(HoodieRecord.RECORD_KEY_METADATA_FIELD));
@@ -2499,9 +2499,9 @@ public class TestHoodieBackedMetadata extends TestHoodieMetadataBase {
         while (logFileReader.hasNext()) {
           HoodieLogBlock logBlock = logFileReader.next();
           if (logBlock instanceof HoodieDataBlock) {
-            try (ClosableIterator<IndexedRecord> recordItr = ((HoodieDataBlock) logBlock).getRecordIterator()) {
+            try (ClosableIterator<HoodieRecord> recordItr = ((HoodieDataBlock) logBlock).getRecordIterator(HoodieIndexRecord::new)) {
               recordItr.forEachRemaining(indexRecord -> {
-                final GenericRecord record = (GenericRecord) indexRecord;
+                final GenericRecord record = (GenericRecord) indexRecord.getData();
                 final GenericRecord colStatsRecord = (GenericRecord) record.get(HoodieMetadataPayload.SCHEMA_FIELD_ID_COLUMN_STATS);
                 assertNotNull(colStatsRecord);
                 assertNotNull(colStatsRecord.get(HoodieMetadataPayload.COLUMN_STATS_FIELD_COLUMN_NAME));

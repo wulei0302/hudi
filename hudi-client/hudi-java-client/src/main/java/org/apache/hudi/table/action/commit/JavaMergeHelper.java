@@ -22,7 +22,6 @@ import org.apache.hudi.client.WriteStatus;
 import org.apache.hudi.common.model.HoodieBaseFile;
 import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.queue.BoundedInMemoryExecutor;
 import org.apache.hudi.common.util.queue.IteratorBasedQueueProducer;
@@ -33,18 +32,14 @@ import org.apache.hudi.io.storage.HoodieFileReaderFactory;
 import org.apache.hudi.table.HoodieTable;
 
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericDatumReader;
-import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.io.BinaryDecoder;
-import org.apache.avro.io.BinaryEncoder;
 import org.apache.hadoop.conf.Configuration;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
-public class JavaMergeHelper<T extends HoodieRecordPayload> extends BaseMergeHelper<T, List<HoodieRecord<T>>,
+public class JavaMergeHelper<T> extends BaseMergeHelper<T, List<HoodieRecord<T>>,
     List<HoodieKey>, List<WriteStatus>> {
 
   private JavaMergeHelper() {
@@ -85,7 +80,7 @@ public class JavaMergeHelper<T extends HoodieRecordPayload> extends BaseMergeHel
         readerIterator = reader.getRecordIterator(readerSchema, createHoodieRecordMapper(table));
       }
 
-      wrapper = new BoundedInMemoryExecutor<>(table.getConfig().getWriteBufferLimitBytes(), new IteratorBasedQueueProducer<>(readerIterator),
+      wrapper = new BoundedInMemoryExecutor(table.getConfig().getWriteBufferLimitBytes(), new IteratorBasedQueueProducer<>(readerIterator),
           Option.of(new UpdateHandler(mergeHandle)), record -> {
         if (!externalSchemaTransformation) {
           return record;

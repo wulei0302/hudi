@@ -26,6 +26,7 @@ import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieIndexRecord;
 import org.apache.hudi.common.model.HoodieLogFile;
 import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.common.table.log.AppendResult;
 import org.apache.hudi.common.table.log.HoodieLogFileReader;
@@ -1055,7 +1056,7 @@ public class TestHoodieLogFormat extends HoodieCommonTestHarness {
     scanner.forEach(s -> readKeys.add(s.getKey().getRecordKey()));
     scanner.forEach(s -> {
       try {
-        if (!s.getData().getInsertValue(schema).isPresent()) {
+        if (!((HoodieRecordPayload)s.getData()).getInsertValue(schema).isPresent()) {
           emptyPayloads.add(true);
         }
       } catch (IOException io) {
@@ -1196,7 +1197,7 @@ public class TestHoodieLogFormat extends HoodieCommonTestHarness {
     scanner.forEach(s -> readKeys.add(s.getRecordKey()));
     scanner.forEach(s -> {
       try {
-        if (!s.getData().getInsertValue(schema).isPresent()) {
+        if (!((HoodieRecordPayload)s.getData()).getInsertValue(schema).isPresent()) {
           emptyPayloadKeys.add(s.getRecordKey());
         }
       } catch (IOException io) {

@@ -29,7 +29,6 @@ import org.apache.hudi.common.config.HoodieCommonConfig;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.table.log.HoodieMergedLogRecordScanner;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.hadoop.config.HoodieRealtimeConfig;
@@ -50,7 +49,7 @@ class RealtimeCompactedRecordReader extends AbstractRealtimeRecordReader
   private static final Logger LOG = LogManager.getLogger(AbstractRealtimeRecordReader.class);
 
   protected final RecordReader<NullWritable, ArrayWritable> parquetReader;
-  private final Map<String, HoodieRecord<? extends HoodieRecordPayload>> deltaRecordMap;
+  private final Map<String, HoodieRecord> deltaRecordMap;
 
   private final Set<String> deltaRecordKeys;
   private final HoodieMergedLogRecordScanner mergedLogRecordScanner;

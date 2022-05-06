@@ -80,7 +80,7 @@ import static org.apache.hudi.metadata.HoodieTableMetadataUtil.collectColumnRang
 /**
  * IO Operation to append data onto an existing file.
  */
-public class HoodieAppendHandle<T extends HoodieRecordPayload, I, K, O> extends HoodieWriteHandle<T, I, K, O> {
+public class HoodieAppendHandle<T, I, K, O> extends HoodieWriteHandle<T, I, K, O> {
 
   private static final Logger LOG = LogManager.getLogger(HoodieAppendHandle.class);
   // This acts as the sequenceID for records written
@@ -397,7 +397,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload, I, K, O> extends 
     timer.startTimer();
   }
 
-  public void doAppend() throws IOException {
+  public void doAppend() {
     while (recordItr.hasNext()) {
       HoodieRecord record = recordItr.next();
       init(record);
@@ -512,7 +512,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload, I, K, O> extends 
     return true;
   }
 
-  private void writeToBuffer(HoodieRecord<T> record) throws IOException {
+  private void writeToBuffer(HoodieRecord<T> record) {
     if (!partitionPath.equals(record.getPartitionPath())) {
       HoodieUpsertException failureEx = new HoodieUpsertException("mismatched partition path, record partition: "
           + record.getPartitionPath() + " but trying to insert into partition: " + partitionPath);
@@ -527,12 +527,16 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload, I, K, O> extends 
       record.seal();
     }
     // fetch the ordering val first in case the record was deflated.
-    final Comparable<?> orderingVal = record.getData().getOrderingValue();
+    final Comparable<?> orderingVal = ((HoodieRecordPayload)record.getData()).getOrderingValue();
     Option<HoodieRecord> indexedRecord = prepareRecord(record);
     if (indexedRecord.isPresent()) {
       // Skip the ignored record.
-      if (!indexedRecord.get().isIgnoredRecord(tableSchema, config.getProps())) {
-        recordList.add(indexedRecord.get());
+      try {
+        if (!indexedRecord.get().isIgnoredRecord(tableSchema, config.getProps())) {
+          recordList.add(indexedRecord.get());
+        }
+      } catch (IOException e) {
+        LOG.error("Error writing record  " + indexedRecord.get(), e);
       }
     } else {
       recordsToDelete.add(DeleteRecord.create(record.getKey(), orderingVal));

@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class JavaWriteHelper<T extends HoodieRecordPayload,R> extends BaseWriteHelper<T, List<HoodieRecord<T>>,
+public class JavaWriteHelper<T,R> extends BaseWriteHelper<T, List<HoodieRecord<T>>,
     List<HoodieKey>, List<WriteStatus>, R> {
 
   private JavaWriteHelper() {
@@ -67,11 +67,11 @@ public class JavaWriteHelper<T extends HoodieRecordPayload,R> extends BaseWriteH
 
     return keyedRecords.values().stream().map(x -> x.stream().map(Pair::getRight).reduce((rec1, rec2) -> {
       @SuppressWarnings("unchecked")
-      T reducedData = (T) rec1.getData().preCombine(rec2.getData());
+      HoodieRecordPayload reducedData = (HoodieRecordPayload) rec1.preCombine(rec2);
       // we cannot allow the user to change the key or partitionPath, since that will affect
       // everything
       // so pick it from one of the records.
-      return new HoodieAvroRecord<T>(rec1.getKey(), reducedData);
+      return (HoodieRecord<T>) new HoodieAvroRecord(rec1.getKey(), reducedData);
     }).orElse(null)).filter(Objects::nonNull).collect(Collectors.toList());
   }
 }

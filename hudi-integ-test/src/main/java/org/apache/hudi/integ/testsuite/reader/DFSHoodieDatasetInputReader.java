@@ -29,6 +29,7 @@ import org.apache.hudi.common.config.HoodieMetadataConfig;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.model.FileSlice;
 import org.apache.hudi.common.model.HoodieFileFormat;
+import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
@@ -285,12 +286,12 @@ public class DFSHoodieDatasetInputReader extends DFSDeltaInputReader {
           .withBitCaskDiskMapCompressionEnabled(HoodieCommonConfig.DISK_MAP_BITCASK_COMPRESSION_ENABLED.defaultValue())
           .build();
       // readAvro log files
-      Iterable<HoodieRecord<? extends HoodieRecordPayload>> iterable = () -> scanner.iterator();
+      Iterable<HoodieRecord> iterable = () -> scanner.iterator();
       Schema schema = new Schema.Parser().parse(schemaStr);
       return StreamSupport.stream(iterable.spliterator(), false)
           .map(e -> {
             try {
-              return (IndexedRecord) e.getData().getInsertValue(schema).get();
+              return (IndexedRecord) ((HoodieAvroRecord)e).getData().getInsertValue(schema).get();
             } catch (IOException io) {
               throw new UncheckedIOException(io);
             }

@@ -21,7 +21,6 @@ package org.apache.hudi.io;
 import org.apache.hadoop.fs.Path;
 import org.apache.hudi.common.bloom.BloomFilter;
 import org.apache.hudi.common.model.HoodieBaseFile;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.util.HoodieTimer;
 import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodieWriteConfig;
@@ -42,7 +41,7 @@ import static org.apache.hudi.metadata.MetadataPartitionType.BLOOM_FILTERS;
 /**
  * Takes a bunch of keys and returns ones that are present in the file group.
  */
-public class HoodieKeyLookupHandle<T extends HoodieRecordPayload, I, K, O> extends HoodieReadHandle<T, I, K, O> {
+public class HoodieKeyLookupHandle<T, I, K, O> extends HoodieReadHandle<T, I, K, O> {
 
   private static final Logger LOG = LogManager.getLogger(HoodieKeyLookupHandle.class);
 

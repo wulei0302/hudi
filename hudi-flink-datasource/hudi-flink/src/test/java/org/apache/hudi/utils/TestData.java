@@ -21,6 +21,7 @@ package org.apache.hudi.utils;
 import org.apache.hudi.client.common.HoodieFlinkEngineContext;
 import org.apache.hudi.common.config.HoodieCommonConfig;
 import org.apache.hudi.common.fs.FSUtils;
+import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.log.HoodieMergedLogRecordScanner;
 import org.apache.hudi.common.testutils.HoodieTestUtils;
@@ -649,7 +650,7 @@ public class TestData {
           .map(hoodieRecord -> {
             try {
               // in case it is a delete
-              GenericRecord record = (GenericRecord) hoodieRecord.getData()
+              GenericRecord record = (GenericRecord) ((HoodieAvroRecord)hoodieRecord).getData()
                   .getInsertValue(schema, new Properties())
                   .orElse(null);
               return record == null ? (String) null : filterOutVariables(record);

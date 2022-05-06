@@ -25,7 +25,6 @@ import org.apache.hudi.common.config.SerializableSchema;
 import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.model.RewriteAvroPayload;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.config.HoodieClusteringConfig;
@@ -46,7 +45,7 @@ import java.util.List;
  * support z-curve optimization, hilbert will come soon.
  * @param <T> HoodieRecordPayload type
  */
-public class RDDSpatialCurveSortPartitioner<T extends HoodieRecordPayload>
+public class RDDSpatialCurveSortPartitioner<T>
     implements BulkInsertPartitioner<JavaRDD<HoodieRecord<T>>> {
 
   private final transient HoodieSparkEngineContext sparkEngineContext;
@@ -70,7 +69,7 @@ public class RDDSpatialCurveSortPartitioner<T extends HoodieRecordPayload>
   @Override
   public JavaRDD<HoodieRecord<T>> repartitionRecords(JavaRDD<HoodieRecord<T>> records, int outputSparkPartitions) {
     JavaRDD<GenericRecord> genericRecordsRDD =
-        records.map(f -> (GenericRecord) f.getData().getInsertValue(schema.get()).get());
+        records.map(f -> (GenericRecord) ((HoodieAvroRecord)f).getData().getInsertValue(schema.get()).get());
 
     Dataset<Row> sourceDataset =
         AvroConversionUtils.createDataFrame(

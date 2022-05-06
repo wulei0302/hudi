@@ -19,6 +19,7 @@
 package org.apache.hudi.io;
 
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hudi.avro.HoodieAvroUtils;
@@ -52,6 +53,25 @@ import static org.apache.hudi.common.util.StringUtils.isNullOrEmpty;
 public abstract class HoodieWriteHandle<T, I, K, O> extends HoodieIOHandle<T, I, K, O> {
 
   private static final Logger LOG = LogManager.getLogger(HoodieWriteHandle.class);
+
+  /**
+   * A special record returned by {@link HoodieRecordPayload}, which means
+   * {@link HoodieWriteHandle} should just skip this record.
+   * This record is only used for {@link HoodieRecordPayload} currently, so it should not
+   * shuffle though network, we can compare the record locally by the equal method.
+   * The HoodieRecordPayload#combineAndGetUpdateValue and HoodieRecordPayload#getInsertValue
+   * have 3 kind of return:
+   * 1、Option.empty
+   * This means we should delete this record.
+   * 2、IGNORE_RECORD
+   * This means we should not process this record,just skip.
+   * 3、Other non-empty record
+   * This means we should process this record.
+   *
+   * We can see the usage of IGNORE_RECORD in
+   * org.apache.spark.sql.hudi.command.payload.ExpressionPayload
+   */
+  public static IgnoreRecord IGNORE_RECORD = new IgnoreRecord();
 
   /**
    * The specified schema of the table. ("specified" denotes that this is configured by the client,
@@ -228,5 +248,33 @@ public abstract class HoodieWriteHandle<T, I, K, O> extends HoodieIOHandle<T, I,
   protected HoodieFileWriter createNewFileWriter(String instantTime, Path path, HoodieTable<T, I, K, O> hoodieTable,
                                                  HoodieWriteConfig config, Schema schema, TaskContextSupplier taskContextSupplier) throws IOException {
     return HoodieFileWriterFactory.getFileWriter(instantTime, path, hoodieTable, config, schema, taskContextSupplier);
+  }
+
+  private static class IgnoreRecord implements GenericRecord {
+
+    @Override
+    public void put(int i, Object v) {
+
+    }
+
+    @Override
+    public Object get(int i) {
+      return null;
+    }
+
+    @Override
+    public Schema getSchema() {
+      return null;
+    }
+
+    @Override
+    public void put(String key, Object v) {
+
+    }
+
+    @Override
+    public Object get(String key) {
+      return null;
+    }
   }
 }

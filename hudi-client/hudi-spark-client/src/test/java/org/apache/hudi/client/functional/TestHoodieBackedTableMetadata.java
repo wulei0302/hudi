@@ -32,7 +32,6 @@ import org.apache.hudi.common.model.HoodieBaseFile;
 import org.apache.hudi.common.model.HoodieIndexRecord;
 import org.apache.hudi.common.model.HoodieLogFile;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.TableSchemaResolver;
@@ -291,9 +290,9 @@ public class TestHoodieBackedTableMetadata extends TestHoodieMetadataBase {
         while (logFileReader.hasNext()) {
           HoodieLogBlock logBlock = logFileReader.next();
           if (logBlock instanceof HoodieDataBlock) {
-            try (ClosableIterator<IndexedRecord> recordItr = ((HoodieDataBlock) logBlock).getRecordIterator()) {
+            try (ClosableIterator<HoodieRecord> recordItr = ((HoodieDataBlock) logBlock).getRecordIterator(HoodieIndexRecord::new)) {
               recordItr.forEachRemaining(indexRecord -> {
-                final GenericRecord record = (GenericRecord) indexRecord;
+                final GenericRecord record = (GenericRecord) indexRecord.getData();
                 assertNull(record.get(HoodieRecord.RECORD_KEY_METADATA_FIELD));
                 assertNull(record.get(HoodieRecord.COMMIT_TIME_METADATA_FIELD));
                 final String key = String.valueOf(record.get(HoodieMetadataPayload.KEY_FIELD_NAME));
@@ -334,7 +333,7 @@ public class TestHoodieBackedTableMetadata extends TestHoodieMetadataBase {
       logRecordReader.scan();
     }, "Metadata log records materialization failed");
 
-    for (Map.Entry<String, HoodieRecord<? extends HoodieRecordPayload>> entry : logRecordReader.getRecords().entrySet()) {
+    for (Map.Entry<String, HoodieRecord> entry : logRecordReader.getRecords().entrySet()) {
       assertFalse(entry.getKey().isEmpty());
       assertFalse(entry.getValue().getRecordKey().isEmpty());
       assertEquals(entry.getKey(), entry.getValue().getRecordKey());
@@ -360,7 +359,7 @@ public class TestHoodieBackedTableMetadata extends TestHoodieMetadataBase {
     HoodieAvroHFileReader hoodieHFileReader = new HoodieAvroHFileReader(context.getHadoopConf().get(),
         new Path(baseFile.getPath()),
         new CacheConfig(context.getHadoopConf().get()));
-    List<IndexedRecord> records = HoodieHFileReader.readAllRecords(hoodieHFileReader);
+    List<IndexedRecord> records = HoodieAvroHFileReader.readAllRecords(hoodieHFileReader);
     records.forEach(entry -> {
       assertNull(((GenericRecord) entry).get(HoodieRecord.RECORD_KEY_METADATA_FIELD));
       final String keyInPayload = (String) ((GenericRecord) entry)

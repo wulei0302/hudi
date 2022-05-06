@@ -54,7 +54,7 @@ object SparkHelpers {
       val key: String = rec.get(HoodieRecord.RECORD_KEY_METADATA_FIELD).toString
       if (!keysToSkip.contains(key)) {
 
-        writer.write(key, rec)
+        writer.writeAvro(key, rec)
       }
     }
     writer.close

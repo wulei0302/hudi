@@ -29,7 +29,7 @@ import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.index.HoodieIndex;
 import org.apache.hudi.table.HoodieTable;
 
-public class HoodieWriteHelper<T extends HoodieRecordPayload, R> extends BaseWriteHelper<T, HoodieData<HoodieRecord<T>>,
+public class HoodieWriteHelper<T, R> extends BaseWriteHelper<T, HoodieData<HoodieRecord<T>>,
     HoodieData<HoodieKey>, HoodieData<WriteStatus>, R> {
 
   private HoodieWriteHelper() {
@@ -60,10 +60,10 @@ public class HoodieWriteHelper<T extends HoodieRecordPayload, R> extends BaseWri
       return Pair.of(key, record);
     }).reduceByKey((rec1, rec2) -> {
       @SuppressWarnings("unchecked")
-      T reducedData = (T) rec2.getData().preCombine(rec1.getData());
+      HoodieRecordPayload reducedData = (HoodieRecordPayload) rec2.preCombine(rec1);
       HoodieKey reducedKey = rec1.getData().equals(reducedData) ? rec1.getKey() : rec2.getKey();
 
-      return new HoodieAvroRecord<>(reducedKey, reducedData);
+      return (HoodieRecord<T>)new HoodieAvroRecord(reducedKey, reducedData);
     }, parallelism).map(Pair::getRight);
   }
 

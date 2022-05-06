@@ -72,7 +72,7 @@ import static org.apache.hudi.config.HoodieClusteringConfig.PLAN_STRATEGY_SORT_C
 /**
  * Clustering strategy for Java engine.
  */
-public abstract class JavaExecutionStrategy<T extends HoodieRecordPayload<T>>
+public abstract class JavaExecutionStrategy<T>
     extends ClusteringExecutionStrategy<T, HoodieData<HoodieRecord<T>>, HoodieData<HoodieKey>, HoodieData<WriteStatus>> {
 
   private static final Logger LOG = LogManager.getLogger(JavaExecutionStrategy.class);

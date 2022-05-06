@@ -19,7 +19,7 @@
 package org.apache.hudi.hadoop;
 
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.IndexedRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.io.hfile.CacheConfig;
@@ -41,7 +41,7 @@ public class HoodieHFileRecordReader implements RecordReader<NullWritable, Array
   private long count = 0;
   private ArrayWritable valueObj;
   private HoodieAvroHFileReader reader;
-  private Iterator<GenericRecord> recordIterator;
+  private Iterator<IndexedRecord> recordIterator;
   private Schema schema;
 
   public HoodieHFileRecordReader(Configuration conf, InputSplit split, JobConf job) throws IOException {
@@ -63,7 +63,7 @@ public class HoodieHFileRecordReader implements RecordReader<NullWritable, Array
       return false;
     }
 
-    GenericRecord record = recordIterator.next();
+    IndexedRecord record = recordIterator.next();
     ArrayWritable aWritable = (ArrayWritable) HoodieRealtimeRecordReaderUtils.avroToArrayWritable(record, schema);
     value.set(aWritable.get());
     count++;

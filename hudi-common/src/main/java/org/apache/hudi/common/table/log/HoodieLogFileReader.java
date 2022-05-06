@@ -53,7 +53,6 @@ import javax.annotation.Nullable;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;

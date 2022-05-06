@@ -24,7 +24,7 @@ import java.util.function.Function;
 /**
  * TODO
  */
-public class MappingIterator<T, R> implements Iterator<R> {
+public class MappingIterator<T, R> implements ClosableIterator<R> {
 
   private final Iterator<T> sourceIterator;
   private final Function<T, R> mapper;
@@ -42,5 +42,9 @@ public class MappingIterator<T, R> implements Iterator<R> {
   @Override
   public R next() {
     return mapper.apply(sourceIterator.next());
+  }
+
+  @Override
+  public void close() {
   }
 }

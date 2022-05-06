@@ -25,8 +25,6 @@ import org.apache.hudi.exception.HoodieIOException;
 import org.apache.avro.Schema;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.util.Option;
-import org.apache.hudi.exception.HoodieIOException;
 import org.apache.hudi.internal.schema.InternalSchema;
 
 import java.io.IOException;
@@ -164,7 +162,7 @@ public abstract class HoodieDataBlock extends HoodieLogBlock {
    * @return List of IndexedRecords for the keys of interest.
    * @throws IOException in case of failures encountered when reading/parsing records
    */
-  public final ClosableIterator<HoodieRecord> getRecords(List<String> keys, HoodieRecord.Mapper mapper) throws IOException {
+  public final ClosableIterator<HoodieRecord> getRecordIterator(List<String> keys, boolean fullKey, HoodieRecord.Mapper mapper) throws IOException {
     boolean fullScan = keys.isEmpty();
     if (enablePointLookups && !fullScan) {
       return lookupRecords(keys, fullKey, mapper);
@@ -172,7 +170,7 @@ public abstract class HoodieDataBlock extends HoodieLogBlock {
 
     // Otherwise, we fetch all the records and filter out all the records, but the
     // ones requested
-    ClosableIterator<HoodieRecord> allRecords = getRecords(mapper);
+    ClosableIterator<HoodieRecord> allRecords = getRecordIterator(mapper);
     if (fullScan) {
       return allRecords;
     }
@@ -195,7 +193,7 @@ public abstract class HoodieDataBlock extends HoodieLogBlock {
     }
   }
 
-  protected ClosableIterator<HoodieRecord> lookupRecords(List<String> keys, HoodieRecord.Mapper mapper) throws IOException {
+  protected ClosableIterator<HoodieRecord> lookupRecords(List<String> keys, boolean fullKey, HoodieRecord.Mapper mapper) throws IOException {
     throw new UnsupportedOperationException(
         String.format("Point lookups are not supported by this Data block type (%s)", getBlockType())
     );
@@ -245,32 +243,30 @@ public abstract class HoodieDataBlock extends HoodieLogBlock {
   /**
    * A {@link ClosableIterator} that supports filtering strategy with given keys.
    * User should supply the key extraction function for fetching string format keys.
-   *
-   * @param <T> the element type
    */
-  private static class FilteringIterator<T extends IndexedRecord> implements ClosableIterator<T> {
-    private final ClosableIterator<T> nested; // nested iterator
+  private static class FilteringIterator implements ClosableIterator<HoodieRecord> {
+    private final ClosableIterator<HoodieRecord> nested; // nested iterator
 
     private final Set<String> keys; // the filtering keys
     private final boolean fullKey;
 
-    private final Function<T, Option<String>> keyExtract; // function to extract the key
+    private final Function<HoodieRecord, Option<String>> keyExtract; // function to extract the key
 
-    private T next;
+    private HoodieRecord next;
 
-    private FilteringIterator(ClosableIterator<T> nested, Set<String> keys, boolean fullKey, Function<T, Option<String>> keyExtract) {
+    private FilteringIterator(ClosableIterator<HoodieRecord> nested, Set<String> keys, boolean fullKey, Function<HoodieRecord, Option<String>> keyExtract) {
       this.nested = nested;
       this.keys = keys;
       this.fullKey = fullKey;
       this.keyExtract = keyExtract;
     }
 
-    public static <T extends IndexedRecord> FilteringIterator<T> getInstance(
-        ClosableIterator<T> nested,
+    public static FilteringIterator getInstance(
+        ClosableIterator<HoodieRecord> nested,
         Set<String> keys,
         boolean fullKey,
-        Function<T, Option<String>> keyExtract) {
-      return new FilteringIterator<>(nested, keys, fullKey, keyExtract);
+        Function<HoodieRecord, Option<String>> keyExtract) {
+      return new FilteringIterator(nested, keys, fullKey, keyExtract);
     }
 
     @Override
@@ -296,7 +292,7 @@ public abstract class HoodieDataBlock extends HoodieLogBlock {
     }
 
     @Override
-    public T next() {
+    public HoodieRecord next() {
       return this.next;
     }
   }

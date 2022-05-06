@@ -19,6 +19,7 @@
 package org.apache.hudi.avro;
 
 import org.apache.hudi.common.config.SerializableSchema;
+import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieOperation;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordPayload;

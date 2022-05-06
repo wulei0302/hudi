@@ -19,20 +19,21 @@
 
 package org.apache.hudi.common.model;
 
-import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.ReflectionUtils;
 import org.apache.hudi.common.util.ValidationUtils;
-import org.apache.hudi.io.storage.HoodieFileWriter;
-import org.apache.hudi.io.storage.HoodieRecordFileWriter;
+
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.IndexedRecord;
 
 import javax.annotation.Nonnull;
+
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
@@ -66,22 +67,6 @@ public class HoodieAvroRecord<T extends HoodieRecordPayload> extends HoodieRecor
       throw new IllegalStateException("Payload already deflated for record.");
     }
     return data;
-  }
-
-  @Override
-  public void writeWithMetadata(HoodieFileWriter writer, Schema schema, Properties props) throws IOException {
-    HoodieRecordFileWriter<IndexedRecord> avroWriter = unsafeCast(writer);
-    IndexedRecord avroPayload = (IndexedRecord) getData().getInsertValue(schema, props).get();
-
-    avroWriter.writeWithMetadata(avroPayload, this);
-  }
-
-  @Override
-  public void write(HoodieFileWriter writer, Schema schema, Properties props) throws IOException {
-    HoodieRecordFileWriter<IndexedRecord> avroWriter = unsafeCast(writer);
-    IndexedRecord avroPayload = (IndexedRecord) getData().getInsertValue(schema, props).get();
-
-    avroWriter.write(getRecordKey(), avroPayload);
   }
 
   // TODO remove
@@ -146,6 +131,36 @@ public class HoodieAvroRecord<T extends HoodieRecordPayload> extends HoodieRecor
   }
 
   @Override
+  public HoodieRecord rewriteRecord(Schema recordSchema, Properties prop, boolean schemaOnReadEnabled, Schema writeSchemaWithMetaFields) throws IOException {
+    GenericRecord record = (GenericRecord) getData().getInsertValue(recordSchema, prop).get();
+    GenericRecord rewriteRecord = schemaOnReadEnabled ? HoodieAvroUtils.rewriteRecordWithNewSchema(record, writeSchemaWithMetaFields, new HashMap<>())
+        : HoodieAvroUtils.rewriteRecord(record, writeSchemaWithMetaFields);
+    return new HoodieAvroRecord<>(getKey(), new RewriteAvroPayload(rewriteRecord), getOperation());
+  }
+
+  @Override
+  public HoodieRecord rewriteRecordWithMetadata(Schema recordSchema, Properties prop, boolean schemaOnReadEnabled, Schema writeSchemaWithMetaFields, String fileName) throws IOException {
+    GenericRecord record = (GenericRecord) getData().getInsertValue(recordSchema, prop).get();
+    GenericRecord rewriteRecord =  schemaOnReadEnabled ? HoodieAvroUtils.rewriteEvolutionRecordWithMetadata(record, writeSchemaWithMetaFields, fileName)
+        : HoodieAvroUtils.rewriteRecordWithMetadata(record, writeSchemaWithMetaFields, fileName);
+    return new HoodieAvroRecord<>(getKey(), new RewriteAvroPayload(rewriteRecord), getOperation());
+  }
+
+  @Override
+  public HoodieRecord rewriteRecordWithNewSchema(Schema recordSchema, Properties prop, Schema newSchema, Map<String, String> renameCols) throws IOException {
+    GenericRecord oldRecord = (GenericRecord) getData().getInsertValue(recordSchema, prop).get();
+    GenericRecord rewriteRecord = HoodieAvroUtils.rewriteRecordWithNewSchema(oldRecord, newSchema, renameCols);
+    return new HoodieAvroRecord<>(getKey(), new RewriteAvroPayload(rewriteRecord), getOperation());
+  }
+
+  @Override
+  public HoodieRecord rewriteRecordWithNewSchema(Schema recordSchema, Properties prop, Schema newSchema) throws IOException {
+    GenericRecord oldRecord = (GenericRecord) getData().getInsertValue(recordSchema, prop).get();
+    GenericRecord rewriteRecord = HoodieAvroUtils.rewriteRecord(oldRecord, newSchema);
+    return new HoodieAvroRecord<>(getKey(), new RewriteAvroPayload(rewriteRecord), getOperation());
+  }
+
+  @Override
   public HoodieRecord addMetadataValues(Map<HoodieMetadataField, String> metadataValues) throws IOException {
     // NOTE: RewriteAvroPayload is expected here
     GenericRecord avroRecordPayload = (GenericRecord) getData().getInsertValue(null).get();
@@ -178,6 +193,17 @@ public class HoodieAvroRecord<T extends HoodieRecordPayload> extends HoodieRecor
   @Override
   public boolean canBeIgnored() {
     return getData().canBeIgnored();
+  }
+
+  @Override
+  public boolean isIgnoredRecord(Schema schema, Properties prop) throws IOException {
+    Option<IndexedRecord> insertRecord = getData().getInsertValue(schema, prop);
+    // just skip the ignored record
+    if (insertRecord.isPresent() && insertRecord.get().equals(SENTINEL)) {
+      return true;
+    } else {
+      return false;
+    }
   }
 
   @Nonnull

@@ -20,7 +20,6 @@ package org.apache.hudi.metadata;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.hadoop.fs.Path;
 import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.avro.model.HoodieMetadataRecord;
@@ -35,6 +34,7 @@ import org.apache.hudi.common.function.SerializableFunction;
 import org.apache.hudi.common.model.FileSlice;
 import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieBaseFile;
+import org.apache.hudi.common.model.HoodieIndexRecord;
 import org.apache.hudi.common.model.HoodieLogFile;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.table.HoodieTableConfig;
@@ -156,12 +156,12 @@ public class HoodieBackedTableMetadata extends BaseTableMetadata {
             (SerializableFunction<FileSlice, Iterator<Pair<String, Option<HoodieRecord<HoodieMetadataPayload>>>>>) fileSlice -> {
               // NOTE: Since this will be executed by executors, we can't access previously cached
               //       readers, and therefore have to always open new ones
-              Pair<HoodieFileReader, HoodieMetadataMergedLogRecordReader> readers =
+              Pair<HoodieAvroFileReader, HoodieMetadataMergedLogRecordReader> readers =
                   openReaders(partitionName, fileSlice);
               try {
                 List<Long> timings = new ArrayList<>();
 
-                HoodieFileReader baseFileReader = readers.getKey();
+                HoodieAvroFileReader baseFileReader = readers.getKey();
                 HoodieMetadataMergedLogRecordReader logRecordScanner = readers.getRight();
 
                 if (baseFileReader == null && logRecordScanner == null) {
@@ -333,17 +333,20 @@ public class HoodieBackedTableMetadata extends BaseTableMetadata {
     }
   }
 
-  private Map<String, HoodieRecord<HoodieMetadataPayload>> fetchBaseFileRecordsByKeys(HoodieFileReader<GenericRecord> baseFileReader,
+  private Map<String, HoodieRecord<HoodieMetadataPayload>> fetchBaseFileRecordsByKeys(HoodieAvroFileReader baseFileReader,
                                                                                       List<String> keys,
                                                                                       boolean fullKeys,
                                                                                       String partitionName) throws IOException {
-    ClosableIterator<GenericRecord> records = fullKeys ? baseFileReader.getRecordsByKeysIterator(keys)
-        : baseFileReader.getRecordsByKeyPrefixIterator(keys);
+    ClosableIterator<HoodieRecord> records = fullKeys ? baseFileReader.getRecordsByKeysIterator(keys, HoodieIndexRecord::new)
+        : baseFileReader.getRecordsByKeyPrefixIterator(keys, HoodieIndexRecord::new);
 
     return toStream(records)
-        .map(record -> Pair.of(
-            (String) record.get(HoodieMetadataPayload.KEY_FIELD_NAME),
-            composeRecord(record, partitionName)))
+        .map(record -> {
+          GenericRecord data = (GenericRecord) record.getData();
+          return Pair.of(
+              (String) (data).get(HoodieMetadataPayload.KEY_FIELD_NAME),
+              composeRecord(data, partitionName));
+        })
         .collect(Collectors.toMap(Pair::getKey, Pair::getValue));
   }
 
@@ -568,7 +571,7 @@ public class HoodieBackedTableMetadata extends BaseTableMetadata {
     closeReader(readers);
   }
 
-  private void closeReader(Pair<HoodieFileReader, HoodieMetadataMergedLogRecordReader> readers) {
+  private void closeReader(Pair<HoodieAvroFileReader, HoodieMetadataMergedLogRecordReader> readers) {
     if (readers != null) {
       try {
         if (readers.getKey() != null) {

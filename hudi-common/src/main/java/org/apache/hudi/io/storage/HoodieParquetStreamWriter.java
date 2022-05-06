@@ -23,7 +23,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.hudi.avro.HoodieAvroWriteSupport;
-import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.parquet.io.OutputStreamBackedOutputFile;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -59,20 +59,15 @@ public class HoodieParquetStreamWriter implements HoodieAvroFileWriter, AutoClos
   }
 
   @Override
-  public long getBytesWritten() {
-    return 0;
-  }
-
-  @Override
-  public void write(String key, IndexedRecord record) throws IOException {
+  public void writeAvro(String key, IndexedRecord record) throws IOException {
     writer.write(record);
     writeSupport.add(key);
   }
 
   @Override
-  public void writeWithMetadata(IndexedRecord newRecord, HoodieRecord record) throws IOException {
+  public void writeAvroWithMetadata(HoodieKey key, IndexedRecord avroRecord) throws IOException {
     // TODO support populating the metadata
-    write(record.getRecordKey(), newRecord);
+    this.writeAvro(key.getRecordKey(), avroRecord);
   }
 
   @Override

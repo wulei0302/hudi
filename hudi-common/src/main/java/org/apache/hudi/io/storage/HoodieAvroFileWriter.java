@@ -18,42 +18,44 @@
 
 package org.apache.hudi.io.storage;
 
-import java.util.concurrent.atomic.AtomicLong;
-import org.apache.avro.generic.GenericRecord;
 import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieRecordPayload;
+
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.IndexedRecord;
 
 import java.io.IOException;
+import java.util.Properties;
+import java.util.concurrent.atomic.AtomicLong;
 
-public interface HoodieAvroFileWriter extends HoodieRecordFileWriter<IndexedRecord> {
-
-  void writeAvroWithMetadata(R newRecord, HoodieRecord record) throws IOException;
+public interface HoodieAvroFileWriter extends HoodieFileWriter {
 
   boolean canWrite();
 
   void close() throws IOException;
 
-  void writeAvro(String key, R oldRecord) throws IOException;
+  void writeAvroWithMetadata(HoodieKey key, IndexedRecord avroRecord) throws IOException;
 
-  long getBytesWritten();
+  void writeAvro(String recordKey, IndexedRecord record) throws IOException;
 
-  // TODO rename
   @Override
   default void writeWithMetadata(HoodieRecord record, Schema schema, Properties props) throws IOException {
-    record.writeWithMetadata(this, schema, props);
+    IndexedRecord avroPayload = (IndexedRecord) ((HoodieRecordPayload) record.getData()).getInsertValue(schema, props).get();
+    writeAvroWithMetadata(record.getKey(), avroPayload);
   }
 
-  // TODO rename
   @Override
   default void write(HoodieRecord record, Schema schema, Properties props) throws IOException {
-    record.write(this, schema, props);
+    IndexedRecord avroPayload = (IndexedRecord) ((HoodieRecordPayload) record.getData()).getInsertValue(schema, props).get();
+    writeAvro(record.getKey().getRecordKey(), avroPayload);
   }
 
-  default void prepRecordWithMetadata(HoodieKey key, HoodieRecord record, String instantTime, Integer partitionId, AtomicLong recordIndex, String fileName) {
+  default void prepRecordWithMetadata(HoodieKey key, IndexedRecord avroRecord, String instantTime, Integer partitionId, AtomicLong recordIndex, String fileName) {
     String seqId = HoodieRecord.generateSequenceId(instantTime, partitionId, recordIndex.getAndIncrement());
     HoodieAvroUtils.addHoodieKeyToRecord((GenericRecord) avroRecord, key.getRecordKey(), key.getPartitionPath(), fileName);
     HoodieAvroUtils.addCommitMetadataToRecord((GenericRecord) avroRecord, instantTime, seqId);
-    return;
   }
 }

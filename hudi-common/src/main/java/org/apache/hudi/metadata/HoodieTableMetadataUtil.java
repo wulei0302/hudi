@@ -34,6 +34,7 @@ import org.apache.hudi.common.model.HoodieCommitMetadata;
 import org.apache.hudi.common.model.HoodieDeltaWriteStat;
 import org.apache.hudi.common.model.HoodieFileFormat;
 import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.model.HoodieReplaceCommitMetadata;
 import org.apache.hudi.common.model.HoodieWriteStat;
 import org.apache.hudi.common.model.WriteOperationType;
@@ -53,14 +54,13 @@ import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.exception.HoodieException;
 import org.apache.hudi.exception.HoodieIOException;
 import org.apache.hudi.exception.HoodieMetadataException;
-import org.apache.hudi.io.storage.HoodieFileReader;
+import org.apache.hudi.io.storage.HoodieAvroFileReader;
 import org.apache.hudi.io.storage.HoodieFileReaderFactory;
 
 import org.apache.avro.AvroTypeException;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hudi.util.Lazy;
@@ -82,6 +82,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -121,9 +122,10 @@ public class HoodieTableMetadataUtil {
    * @return map of {@link HoodieColumnRangeMetadata} for each of the provided target fields for
    *         the collection of provided records
    */
-  public static Map<String, HoodieColumnRangeMetadata<Comparable>> collectColumnRangeMetadata(List<IndexedRecord> records,
+  public static Map<String, HoodieColumnRangeMetadata<Comparable>> collectColumnRangeMetadata(List<HoodieRecord> records,
                                                                                               List<Schema.Field> targetFields,
-                                                                                              String filePath) {
+                                                                                              String filePath,
+      Schema schema, Properties prop) {
     // Helper class to calculate column stats
     class ColumnStats {
       Object minValue;
@@ -141,8 +143,14 @@ public class HoodieTableMetadataUtil {
       // with the values from this record
       targetFields.forEach(field -> {
         ColumnStats colStats = allColumnStats.computeIfAbsent(field.name(), (ignored) -> new ColumnStats());
-
-        GenericRecord genericRecord = (GenericRecord) record;
+        // TODO support other record
+        GenericRecord genericRecord = null;
+        try {
+          genericRecord = (GenericRecord) ((HoodieRecordPayload) record.getData()).getInsertValue(schema, prop).get();
+        } catch (IOException e) {
+          e.printStackTrace();
+          return;
+        }
 
         final Object fieldVal = convertValueForSpecificDataTypes(field.schema(), genericRecord.get(field.name()), true);
         final Schema fieldSchema = getNestedFieldSchemaFromWriteSchema(genericRecord.getSchema(), field.name());

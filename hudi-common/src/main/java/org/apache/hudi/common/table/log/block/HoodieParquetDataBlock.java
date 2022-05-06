@@ -25,6 +25,7 @@ import org.apache.hudi.common.util.ClosableIterator;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.ParquetReaderIterator;
+import org.apache.hudi.io.storage.HoodieAvroFileReader.HoodieRecordTransformIterator;
 import org.apache.hudi.io.storage.HoodieAvroParquetConfig;
 import org.apache.hudi.io.storage.HoodieParquetStreamWriter;
 
@@ -153,10 +154,11 @@ public class HoodieParquetDataBlock extends HoodieDataBlock {
         blockContentLoc.getContentPositionInLogFile(),
         blockContentLoc.getBlockSize());
 
-    return getProjectedParquetRecordsIterator(
+    ClosableIterator<IndexedRecord> iterator = getProjectedParquetRecordsIterator(
         inlineConf,
         readerSchema,
         HadoopInputFile.fromPath(inlineLogFilePath, inlineConf));
+    return new HoodieRecordTransformIterator(iterator, mapper);
   }
 
   @Override

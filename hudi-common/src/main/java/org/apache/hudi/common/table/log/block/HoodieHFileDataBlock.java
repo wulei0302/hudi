@@ -25,11 +25,10 @@ import org.apache.hudi.common.fs.inline.InLineFSUtils;
 import org.apache.hudi.common.fs.inline.InLineFileSystem;
 import org.apache.hudi.common.util.ClosableIterator;
 import org.apache.hudi.common.util.Option;
-import org.apache.hudi.common.util.StringUtils;
 import org.apache.hudi.common.util.ValidationUtils;
 import org.apache.hudi.exception.HoodieIOException;
 import org.apache.hudi.io.storage.HoodieHBaseKVComparator;
-import org.apache.hudi.io.storage.HoodieHFileReader;
+import org.apache.hudi.io.storage.HoodieAvroHFileReader;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
@@ -43,16 +42,7 @@ import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.io.hfile.HFile;
 import org.apache.hadoop.hbase.io.hfile.HFileContext;
 import org.apache.hadoop.hbase.io.hfile.HFileContextBuilder;
-import org.apache.hadoop.hbase.util.Pair;
-import org.apache.hudi.avro.HoodieAvroUtils;
-import org.apache.hudi.common.fs.inline.InLineFSUtils;
-import org.apache.hudi.common.fs.inline.InLineFileSystem;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.util.Option;
-import org.apache.hudi.common.util.ValidationUtils;
-import org.apache.hudi.exception.HoodieIOException;
-import org.apache.hudi.io.storage.HoodieAvroHFileReader;
-import org.apache.hudi.io.storage.HoodieHBaseKVComparator;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
@@ -163,7 +153,7 @@ public class HoodieHFileDataBlock extends HoodieDataBlock {
       }
     });
 
-    writer.appendFileInfo(HoodieHFileReader.SCHEMA_KEY.getBytes(), getSchema().toString().getBytes());
+    writer.appendFileInfo(HoodieAvroHFileReader.SCHEMA_KEY.getBytes(), getSchema().toString().getBytes());
 
     writer.close();
     ostream.flush();
@@ -183,7 +173,7 @@ public class HoodieHFileDataBlock extends HoodieDataBlock {
     // Read the content
     HoodieAvroHFileReader reader = new HoodieAvroHFileReader(fs, pathForReader, content, Option.of(writerSchema));
     Iterator<IndexedRecord> recordIterator = reader.getRecordIterator(readerSchema);
-    return new ClosableIterator<IndexedRecord>() {
+    return new ClosableIterator<HoodieRecord>() {
       @Override
       public void close() {
         reader.close();
@@ -195,15 +185,15 @@ public class HoodieHFileDataBlock extends HoodieDataBlock {
       }
 
       @Override
-      public IndexedRecord next() {
-        return recordIterator.next();
+      public HoodieRecord next() {
+        return mapper.apply(recordIterator.next());
       }
     };
   }
 
   // TODO abstract this w/in HoodieDataBlock
   @Override
-  protected ClosableIterator<IndexedRecord> lookupRecords(List<String> keys, boolean fullKey) throws IOException {
+  protected ClosableIterator<HoodieRecord> lookupRecords(List<String> keys, boolean fullKey, HoodieRecord.Mapper mapper) throws IOException {
     HoodieLogBlockContentLocation blockContentLoc = getBlockContentLocation().get();
 
     // NOTE: It's important to extend Hadoop configuration here to make sure configuration
@@ -230,15 +220,15 @@ public class HoodieHFileDataBlock extends HoodieDataBlock {
     final ClosableIterator<IndexedRecord> recordIterator =
         fullKey ? reader.getRecordsByKeysIterator(sortedKeys, readerSchema) : reader.getRecordsByKeyPrefixIterator(sortedKeys, readerSchema);
 
-    return new ClosableIterator<IndexedRecord>() {
+    return new ClosableIterator<HoodieRecord>() {
       @Override
       public boolean hasNext() {
         return recordIterator.hasNext();
       }
 
       @Override
-      public IndexedRecord next() {
-        return recordIterator.next();
+      public HoodieRecord next() {
+        return mapper.apply(recordIterator.next());
       }
 
       @Override

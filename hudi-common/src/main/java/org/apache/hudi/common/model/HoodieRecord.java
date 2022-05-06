@@ -25,7 +25,6 @@ import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.util.CollectionUtils;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.collection.Pair;
-import org.apache.hudi.io.storage.HoodieFileWriter;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -41,15 +40,36 @@ import java.util.stream.IntStream;
  */
 public abstract class HoodieRecord<T> implements Serializable {
 
-  public static final String COMMIT_TIME_METADATA_FIELD = "_hoodie_commit_time";
-  public static final String COMMIT_SEQNO_METADATA_FIELD = "_hoodie_commit_seqno";
-  public static final String RECORD_KEY_METADATA_FIELD = "_hoodie_record_key";
-  public static final String PARTITION_PATH_METADATA_FIELD = "_hoodie_partition_path";
-  public static final String FILENAME_METADATA_FIELD = "_hoodie_file_name";
-  public static final String OPERATION_METADATA_FIELD = "_hoodie_operation";
-  public static final String HOODIE_IS_DELETED = "_hoodie_is_deleted";
+  public static final String COMMIT_TIME_METADATA_FIELD = HoodieMetadataField.COMMIT_TIME_METADATA_FIELD.getFieldName();
+  public static final String COMMIT_SEQNO_METADATA_FIELD = HoodieMetadataField.COMMIT_SEQNO_METADATA_FIELD.getFieldName();
+  public static final String RECORD_KEY_METADATA_FIELD = HoodieMetadataField.RECORD_KEY_METADATA_FIELD.getFieldName();
+  public static final String PARTITION_PATH_METADATA_FIELD = HoodieMetadataField.PARTITION_PATH_METADATA_FIELD.getFieldName();
+  public static final String FILENAME_METADATA_FIELD = HoodieMetadataField.FILENAME_METADATA_FIELD.getFieldName();
+  public static final String OPERATION_METADATA_FIELD = HoodieMetadataField.OPERATION_METADATA_FIELD.getFieldName();
+  public static final String HOODIE_IS_DELETED = HoodieMetadataField.DELETED_METADATA_FIELD.getFieldName();
+
+  public enum HoodieMetadataField {
+    COMMIT_TIME_METADATA_FIELD("_hoodie_commit_time"),
+    COMMIT_SEQNO_METADATA_FIELD("_hoodie_commit_seqno"),
+    RECORD_KEY_METADATA_FIELD("_hoodie_record_key"),
+    PARTITION_PATH_METADATA_FIELD("_hoodie_partition_path"),
+    FILENAME_METADATA_FIELD("_hoodie_file_name"),
+    OPERATION_METADATA_FIELD("_hoodie_operation"),
+    DELETED_METADATA_FIELD("_hoodie_is_deleted");
+
+    private final String fieldName;
+
+    HoodieMetadataField(String fieldName) {
+      this.fieldName = fieldName;
+    }
+
+    public String getFieldName() {
+      return fieldName;
+    }
+  }
 
   public static int FILENAME_METADATA_FIELD_POS = 4;
+  public static final EmptyRecord SENTINEL = new EmptyRecord();
 
   public static final List<String> HOODIE_META_COLUMNS =
       CollectionUtils.createImmutableList(COMMIT_TIME_METADATA_FIELD, COMMIT_SEQNO_METADATA_FIELD,
@@ -205,10 +225,6 @@ public abstract class HoodieRecord<T> implements Serializable {
     return sb.toString();
   }
 
-  public static String generateSequenceId(String instantTime, int partitionId, long recordIndex) {
-    return instantTime + "_" + partitionId + "_" + recordIndex;
-  }
-
   public String getPartitionPath() {
     assert key != null;
     return key.getPartitionPath();
@@ -233,10 +249,6 @@ public abstract class HoodieRecord<T> implements Serializable {
     }
   }
 
-  public abstract void writeWithMetadata(HoodieFileWriter writer, Schema schema, Properties props) throws IOException;
-
-  public abstract void write(HoodieFileWriter writer, Schema schema, Properties props) throws IOException;
-
   //////////////////////////////////////////////////////////////////////////////
 
   //
@@ -258,6 +270,17 @@ public abstract class HoodieRecord<T> implements Serializable {
 
   public abstract HoodieRecord rewriteRecord(Schema recordSchema, Schema targetSchema, TypedProperties props) throws IOException;
 
+  /**
+   * Rewrite the GenericRecord with the Schema containing the Hoodie Metadata fields.
+   */
+  public abstract HoodieRecord rewriteRecord(Schema recordSchema, Properties prop, boolean schemaOnReadEnabled, Schema writeSchemaWithMetaFields) throws IOException;
+
+  public abstract HoodieRecord rewriteRecordWithMetadata(Schema recordSchema, Properties prop, boolean schemaOnReadEnabled, Schema writeSchemaWithMetaFields, String fileName) throws IOException;
+
+  public abstract HoodieRecord rewriteRecordWithNewSchema(Schema recordSchema, Properties prop, Schema newSchema, Map<String, String> renameCols) throws IOException;
+
+  public abstract HoodieRecord rewriteRecordWithNewSchema(Schema recordSchema, Properties prop, Schema newSchema) throws IOException;
+
   public abstract HoodieRecord addMetadataValues(Map<HoodieMetadataField, String> metadataValues) throws IOException;
 
   public abstract HoodieRecord overrideMetadataValue(HoodieMetadataField metadataField, String value) throws IOException;
@@ -265,6 +288,8 @@ public abstract class HoodieRecord<T> implements Serializable {
   public abstract Option<Map<String, String>> getMetadata();
 
   public abstract boolean canBeIgnored();
+
+  public abstract boolean isIgnoredRecord(Schema schema, Properties prop) throws IOException;
 
   //////////////////////////////////////////////////////////////////////////////
 
@@ -283,6 +308,23 @@ public abstract class HoodieRecord<T> implements Serializable {
     HoodieRecord apply(IndexedRecord avroPayload);
   }
 
+  /**
+   * A special record returned by {@link HoodieRecordPayload}, which means
+   * {@link HoodieWriteHandle} should just skip this record.
+   * This record is only used for {@link HoodieRecordPayload} currently, so it should not
+   * shuffle though network, we can compare the record locally by the equal method.
+   * The HoodieRecordPayload#combineAndGetUpdateValue and HoodieRecordPayload#getInsertValue
+   * have 3 kind of return:
+   * 1、Option.empty
+   * This means we should delete this record.
+   * 2、IGNORE_RECORD
+   * This means we should not process this record,just skip.
+   * 3、Other non-empty record
+   * This means we should process this record.
+   *
+   * We can see the usage of IGNORE_RECORD in
+   * org.apache.spark.sql.hudi.command.payload.ExpressionPayload
+   */
   private static class EmptyRecord implements GenericRecord {
     private EmptyRecord() {}
 

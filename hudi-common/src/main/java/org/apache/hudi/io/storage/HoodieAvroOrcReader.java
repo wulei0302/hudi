@@ -36,7 +36,6 @@ import org.apache.orc.RecordReader;
 import org.apache.orc.TypeDescription;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.Set;
 
 public class HoodieAvroOrcReader implements HoodieAvroFileReader {

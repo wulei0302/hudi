@@ -379,11 +379,12 @@ public abstract class AbstractHoodieLogRecordReader {
     HoodieRecord.Mapper mapper = (rec) -> createHoodieRecord(rec, this.hoodieTableMetaClient.getTableConfig(),
         this.payloadClassFQN, this.preCombineField, this.withOperationField, this.simpleKeyGenFields, this.partitionName);
 
-    try (ClosableIterator<IndexedRecord> recordIterator = getRecordsIterator(dataBlock, keySpecOpt)) {
+    try (ClosableIterator<HoodieRecord> recordIterator = getRecordsIterator(dataBlock, keySpecOpt, mapper)) {
       Option<Schema> schemaOption = getMergedSchema(dataBlock);
       while (recordIterator.hasNext()) {
-        IndexedRecord currentRecord = recordIterator.next();
-        IndexedRecord record = schemaOption.isPresent() ? HoodieAvroUtils.rewriteRecordWithNewSchema(currentRecord, schemaOption.get(), new HashMap<>()) : currentRecord;
+        HoodieRecord currentRecord = recordIterator.next();
+        IndexedRecord record = schemaOption.isPresent()
+            ? HoodieAvroUtils.rewriteRecordWithNewSchema((IndexedRecord) currentRecord.getData(), schemaOption.get(), new HashMap<>()) : (IndexedRecord) currentRecord.getData();
         processNextRecord(createHoodieRecord(record, this.hoodieTableMetaClient.getTableConfig(), this.payloadClassFQN,
             this.preCombineField, this.withOperationField, this.simpleKeyGenFields, this.partitionName));
         totalLogRecords.incrementAndGet();
@@ -486,13 +487,13 @@ public abstract class AbstractHoodieLogRecordReader {
     progress = numLogFilesSeen - 1 / logFilePaths.size();
   }
 
-  private ClosableIterator<IndexedRecord> getRecordsIterator(HoodieDataBlock dataBlock, Option<KeySpec> keySpecOpt) throws IOException {
+  private ClosableIterator<HoodieRecord> getRecordsIterator(HoodieDataBlock dataBlock, Option<KeySpec> keySpecOpt, HoodieRecord.Mapper mapper) throws IOException {
     if (keySpecOpt.isPresent()) {
       KeySpec keySpec = keySpecOpt.get();
-      return dataBlock.getRecordIterator(keySpec.keys, keySpec.fullKey);
+      return dataBlock.getRecordIterator(keySpec.keys, keySpec.fullKey, mapper);
     }
 
-    return dataBlock.getRecordIterator();
+    return dataBlock.getRecordIterator(mapper);
   }
 
   /**

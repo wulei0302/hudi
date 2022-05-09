@@ -19,6 +19,7 @@
 package org.apache.hudi.io;
 
 import org.apache.avro.Schema;
+import org.apache.avro.generic.IndexedRecord;
 import org.apache.hadoop.fs.Path;
 import org.apache.hudi.client.WriteStatus;
 import org.apache.hudi.common.config.TypedProperties;
@@ -29,6 +30,7 @@ import org.apache.hudi.common.model.DeleteRecord;
 import org.apache.hudi.common.model.FileSlice;
 import org.apache.hudi.common.model.HoodieColumnRangeMetadata;
 import org.apache.hudi.common.model.HoodieDeltaWriteStat;
+import org.apache.hudi.common.model.HoodieIndexRecord;
 import org.apache.hudi.common.model.HoodieLogFile;
 import org.apache.hudi.common.model.HoodieOperation;
 import org.apache.hudi.common.model.HoodiePartitionMetadata;
@@ -69,6 +71,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -351,7 +354,7 @@ public class HoodieAppendHandle<T, I, K, O> extends HoodieWriteHandle<T, I, K, O
     statuses.add(this.writeStatus);
   }
 
-  private void processAppendResult(AppendResult result, List<HoodieRecord> recordList) {
+  private void processAppendResult(AppendResult result, List<HoodieRecord> recordList) throws IOException {
     HoodieDeltaWriteStat stat = (HoodieDeltaWriteStat) this.writeStatus.getStat();
 
     if (stat.getPath() == null) {
@@ -384,8 +387,17 @@ public class HoodieAppendHandle<T, I, K, O> extends HoodieWriteHandle<T, I, K, O
             .collect(Collectors.toList());
       }
 
+      List<IndexedRecord> indexedRecords = new LinkedList<>();
+      for (HoodieRecord hoodieRecord : recordList) {
+        if (hoodieRecord instanceof HoodieIndexRecord) {
+          indexedRecords.add((IndexedRecord) hoodieRecord.getData());
+        } else {
+          indexedRecords.add((IndexedRecord) ((HoodieRecordPayload) hoodieRecord.getData()).getInsertValue(tableSchema, config.getProps()).get());
+        }
+      }
+
       Map<String, HoodieColumnRangeMetadata<Comparable>> columnRangesMetadataMap =
-          collectColumnRangeMetadata(recordList, fieldsToIndex, stat.getPath(), tableSchema, config.getProps());
+          collectColumnRangeMetadata(indexedRecords, fieldsToIndex, stat.getPath());
 
       stat.setRecordsStats(columnRangesMetadataMap);
     }
@@ -532,7 +544,7 @@ public class HoodieAppendHandle<T, I, K, O> extends HoodieWriteHandle<T, I, K, O
     if (indexedRecord.isPresent()) {
       // Skip the ignored record.
       try {
-        if (!indexedRecord.get().isIgnoredRecord(tableSchema, config.getProps())) {
+        if (indexedRecord.isPresent() && !indexedRecord.get().isIgnoredRecord(tableSchema, config.getProps())) {
           recordList.add(indexedRecord.get());
         }
       } catch (IOException e) {

@@ -23,6 +23,7 @@ import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.engine.TaskContextSupplier;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.model.HoodieBaseFile;
+import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieOperation;
 import org.apache.hudi.common.model.HoodiePartitionMetadata;
 import org.apache.hudi.common.model.HoodieRecord;
@@ -292,7 +293,7 @@ public class HoodieMergeHandle<T, I, K, O> extends HoodieWriteHandle<T, I, K, O>
     }
     try {
       if (!isDelete) {
-        writeToFile(hoodieRecord, schema, prop, preserveMetadata && useWriterSchemaForCompaction);
+        writeToFile(hoodieRecord.getKey(), hoodieRecord, schema, prop, preserveMetadata && useWriterSchemaForCompaction);
         recordsWritten++;
       } else {
         recordsDeleted++;
@@ -314,7 +315,7 @@ public class HoodieMergeHandle<T, I, K, O> extends HoodieWriteHandle<T, I, K, O>
    * Go through an old record. Here if we detect a newer version shows up, we write the new one to the file.
    */
   public void write(HoodieRecord<T> oldRecord) {
-    String key = oldRecord.getRecordKey();
+    String key = oldRecord.getRecordKey(keyGeneratorOpt);
     boolean copyOldRecord = true;
     Schema schema = useWriterSchemaForCompaction ? tableSchemaWithMetaFields : tableSchema;
     TypedProperties props = config.getPayloadConfig().getProps();
@@ -328,7 +329,7 @@ public class HoodieMergeHandle<T, I, K, O> extends HoodieWriteHandle<T, I, K, O>
                 schema,
                 props);
 
-        if (combinedRecord.get().isIgnoredRecord(schema, props)) {
+        if (!combinedRecord.isPresent() || combinedRecord.get().isIgnoredRecord(schema, props)) {
           // If it is an IGNORE_RECORD, just copy the old record, and do not update the new record.
           copyOldRecord = true;
         } else if (writeUpdateRecord(hoodieRecord, oldRecord, combinedRecord)) {
@@ -350,7 +351,7 @@ public class HoodieMergeHandle<T, I, K, O> extends HoodieWriteHandle<T, I, K, O>
     if (copyOldRecord) {
       try {
         // NOTE: We're enforcing preservation of the record metadata to keep existing semantic
-        writeToFile(oldRecord, schema, props, true);
+        writeToFile(new HoodieKey(key, partitionPath), oldRecord, schema, props, true);
       } catch (IOException | RuntimeException e) {
         String errMsg = String.format("Failed to merge old record into new file for key %s from old file %s to new file %s with writerSchema %s",
                 key, getOldFilePath(), newFilePath, writeSchemaWithMetaFields.toString(true));
@@ -361,13 +362,13 @@ public class HoodieMergeHandle<T, I, K, O> extends HoodieWriteHandle<T, I, K, O>
     }
   }
 
-  protected void writeToFile(HoodieRecord<T> record, Schema schema, Properties prop, boolean shouldPreserveRecordMetadata) throws IOException {
+  protected void writeToFile(HoodieKey key, HoodieRecord<T> record, Schema schema, Properties prop, boolean shouldPreserveRecordMetadata) throws IOException {
     if (shouldPreserveRecordMetadata) {
       // NOTE: `FILENAME_METADATA_FIELD` has to be rewritten to correctly point to the
       //       file holding this record even in cases when overall metadata is preserved
-      fileWriter.write(record.getRecordKey(), record.rewriteRecordWithMetadata(schema, prop, schemaOnReadEnabled, writeSchemaWithMetaFields, newFilePath.getName()), writeSchemaWithMetaFields);
+      fileWriter.write(key.getRecordKey(), record.rewriteRecordWithMetadata(schema, prop, schemaOnReadEnabled, writeSchemaWithMetaFields, newFilePath.getName()), writeSchemaWithMetaFields);
     } else {
-      fileWriter.writeWithMetadata(record.getKey(), record.rewriteRecordWithMetadata(schema, prop, schemaOnReadEnabled, writeSchemaWithMetaFields, newFilePath.getName()), writeSchemaWithMetaFields);
+      fileWriter.writeWithMetadata(key, record.rewriteRecordWithMetadata(schema, prop, schemaOnReadEnabled, writeSchemaWithMetaFields, newFilePath.getName()), writeSchemaWithMetaFields);
     }
   }
 

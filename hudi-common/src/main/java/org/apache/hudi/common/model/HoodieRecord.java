@@ -25,6 +25,7 @@ import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.util.CollectionUtils;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.collection.Pair;
+import org.apache.hudi.keygen.BaseKeyGenerator;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -235,6 +236,8 @@ public abstract class HoodieRecord<T> implements Serializable {
     return key.getRecordKey();
   }
 
+  public abstract String getRecordKey(Option<BaseKeyGenerator> keyGeneratorOpt);
+
   public void seal() {
     this.sealed = true;
   }
@@ -264,7 +267,7 @@ public abstract class HoodieRecord<T> implements Serializable {
 
   // NOTE: This method is assuming semantic that only records bearing the same (partition, key) could
   //       be combined
-  public abstract Option<HoodieRecord<T>> combineAndGetUpdateValue(HoodieRecord<T> previousRecord, Schema schema, Properties props) throws IOException;
+  public abstract Option<HoodieRecord<T>> combineAndGetUpdateValue(HoodieRecord previousRecord, Schema schema, Properties props) throws IOException;
 
   public abstract HoodieRecord mergeWith(HoodieRecord other, Schema readerSchema, Schema writerSchema) throws IOException;
 

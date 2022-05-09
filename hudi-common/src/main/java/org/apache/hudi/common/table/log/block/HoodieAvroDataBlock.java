@@ -30,6 +30,7 @@ import org.apache.avro.io.Encoder;
 import org.apache.avro.io.EncoderFactory;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hudi.common.fs.SizeAwareDataInputStream;
+import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieIndexRecord;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.util.ClosableIterator;
@@ -120,7 +121,7 @@ public class HoodieAvroDataBlock extends HoodieDataBlock {
       encoderCache.set(encoder);
       try {
         // Encode the record into bytes
-        writer.write((IndexedRecord) s.getData(), encoder);
+        writer.write((IndexedRecord) ((HoodieAvroRecord) s).getData().getInsertValue(schema).get(), encoder);
         encoder.flush();
 
         // Get the size of the bytes

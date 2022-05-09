@@ -24,6 +24,7 @@ import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.ReflectionUtils;
 import org.apache.hudi.common.util.ValidationUtils;
+import org.apache.hudi.keygen.BaseKeyGenerator;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
@@ -35,7 +36,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Properties;
 
 import static org.apache.hudi.TypeUtils.unsafeCast;
@@ -69,6 +69,11 @@ public class HoodieAvroRecord<T extends HoodieRecordPayload> extends HoodieRecor
     return data;
   }
 
+  @Override
+  public String getRecordKey(Option<BaseKeyGenerator> keyGeneratorOpt) {
+    return getRecordKey();
+  }
+
   // TODO remove
   public Option<GenericRecord> asAvro(Schema schema) throws IOException {
     return getData().getInsertValue(schema);
@@ -94,10 +99,13 @@ public class HoodieAvroRecord<T extends HoodieRecordPayload> extends HoodieRecor
   // NOTE: This method is assuming semantic that only records bearing the same (partition, key) could
   //       be combined
   @Override
-  public Option<HoodieRecord<T>> combineAndGetUpdateValue(HoodieRecord<T> previousRecord, Schema schema, Properties props) throws IOException {
-    ValidationUtils.checkState(Objects.equals(getKey(), previousRecord.getKey()));
-
-    Option<IndexedRecord> previousRecordAvroPayload = previousRecord.getData().getInsertValue(schema, props);
+  public Option<HoodieRecord<T>> combineAndGetUpdateValue(HoodieRecord previousRecord, Schema schema, Properties props) throws IOException {
+    Option<IndexedRecord> previousRecordAvroPayload;
+    if (previousRecord instanceof HoodieIndexRecord) {
+      previousRecordAvroPayload = Option.of(((HoodieIndexRecord) previousRecord).getData());
+    } else {
+      previousRecordAvroPayload = ((HoodieRecordPayload)previousRecord.getData()).getInsertValue(schema, props);
+    }
     if (!previousRecordAvroPayload.isPresent()) {
       return Option.empty();
     }

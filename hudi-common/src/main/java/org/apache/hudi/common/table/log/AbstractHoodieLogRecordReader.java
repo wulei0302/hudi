@@ -19,7 +19,6 @@
 package org.apache.hudi.common.table.log;
 
 import org.apache.hudi.common.model.DeleteRecord;
-import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieLogFile;
 import org.apache.hudi.common.model.HoodieRecord;
@@ -61,6 +60,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -383,10 +383,9 @@ public abstract class AbstractHoodieLogRecordReader {
       Option<Schema> schemaOption = getMergedSchema(dataBlock);
       while (recordIterator.hasNext()) {
         HoodieRecord currentRecord = recordIterator.next();
-        IndexedRecord record = schemaOption.isPresent()
-            ? HoodieAvroUtils.rewriteRecordWithNewSchema((IndexedRecord) currentRecord.getData(), schemaOption.get(), new HashMap<>()) : (IndexedRecord) currentRecord.getData();
-        processNextRecord(createHoodieRecord(record, this.hoodieTableMetaClient.getTableConfig(), this.payloadClassFQN,
-            this.preCombineField, this.withOperationField, this.simpleKeyGenFields, this.partitionName));
+        HoodieRecord record = schemaOption.isPresent()
+            ? currentRecord.rewriteRecordWithNewSchema(dataBlock.getSchema(), new Properties(), schemaOption.get(), new HashMap<>()) : currentRecord;
+        processNextRecord(record);
         totalLogRecords.incrementAndGet();
       }
     }

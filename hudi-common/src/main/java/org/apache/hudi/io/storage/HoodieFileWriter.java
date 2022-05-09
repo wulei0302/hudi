@@ -19,6 +19,8 @@
 package org.apache.hudi.io.storage;
 
 import org.apache.avro.Schema;
+
+import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieRecord;
 
 import java.io.IOException;
@@ -27,17 +29,17 @@ import java.util.Properties;
 public interface HoodieFileWriter {
   boolean canWrite();
 
-  void writeWithMetadata(HoodieRecord record, Schema schema, Properties props) throws IOException;
+  void writeWithMetadata(HoodieKey key, HoodieRecord record, Schema schema, Properties props) throws IOException;
 
-  void write(HoodieRecord record, Schema schema, Properties props) throws IOException;
+  void write(String recordKey, HoodieRecord record, Schema schema, Properties props) throws IOException;
 
   void close() throws IOException;
 
-  default void writeWithMetadata(HoodieRecord record, Schema schema) throws IOException {
-    writeWithMetadata(record, schema, new Properties());
+  default void writeWithMetadata(HoodieKey key, HoodieRecord record, Schema schema) throws IOException {
+    writeWithMetadata(key, record, schema, new Properties());
   }
 
-  default void write(HoodieRecord record, Schema schema) throws IOException {
-    write(record, schema, new Properties());
+  default void write(String recordKey, HoodieRecord record, Schema schema) throws IOException {
+    write(recordKey, record, schema, new Properties());
   }
 }

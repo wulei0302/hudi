@@ -114,7 +114,8 @@ public class HoodieParquetDataBlock extends HoodieDataBlock {
     try (FSDataOutputStream outputStream = new FSDataOutputStream(baos)) {
       try (HoodieParquetStreamWriter parquetWriter = new HoodieParquetStreamWriter(outputStream, avroParquetConfig)) {
         for (HoodieRecord record : records) {
-          parquetWriter.write(record, writerSchema);
+          String recordKey = getRecordKey(record).orElse(null);
+          parquetWriter.write(recordKey, record, writerSchema);
         }
         outputStream.flush();
       }

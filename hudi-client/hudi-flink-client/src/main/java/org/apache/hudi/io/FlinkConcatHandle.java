@@ -57,7 +57,7 @@ public class FlinkConcatHandle<T, I, K, O>
   public void write(HoodieRecord oldRecord) {
     String key = oldRecord.getRecordKey();
     try {
-      fileWriter.write(oldRecord, writeSchema);
+      fileWriter.write(key, oldRecord, writeSchema);
     } catch (IOException | RuntimeException e) {
       String errMsg = String.format("Failed to write old record into new file for key %s from old file %s to new file %s with writerSchema %s",
           key, getOldFilePath(), newFilePath, writeSchemaWithMetaFields.toString(true));

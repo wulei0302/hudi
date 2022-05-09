@@ -137,9 +137,11 @@ public class HoodieCreateHandle<T, I, K, O> extends HoodieWriteHandle<T, I, K, O
         }
         // Convert GenericRecord to GenericRecord with hoodie commit metadata in schema
         if (preserveMetadata) {
-          fileWriter.write(record.rewriteRecordWithMetadata(schema, config.getProps(), schemaOnReadEnabled, writeSchemaWithMetaFields, path.getName()), writeSchemaWithMetaFields);
+          fileWriter.write(record.getRecordKey(), record.rewriteRecordWithMetadata(
+              schema, config.getProps(), schemaOnReadEnabled, writeSchemaWithMetaFields, path.getName()), writeSchemaWithMetaFields);
         } else {
-          fileWriter.writeWithMetadata(record.rewriteRecordWithMetadata(schema, config.getProps(), schemaOnReadEnabled, writeSchemaWithMetaFields, path.getName()), writeSchemaWithMetaFields);
+          fileWriter.writeWithMetadata(record.getKey(), record.rewriteRecordWithMetadata(
+              schema, config.getProps(), schemaOnReadEnabled, writeSchemaWithMetaFields, path.getName()), writeSchemaWithMetaFields);
         }
         // update the new location of record, so we know where to find it next
         record.unseal();

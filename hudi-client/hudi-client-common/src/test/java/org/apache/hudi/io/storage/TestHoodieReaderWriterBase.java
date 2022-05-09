@@ -20,12 +20,8 @@
 package org.apache.hudi.io.storage;
 
 import org.apache.hudi.common.bloom.BloomFilter;
-import org.apache.hudi.common.model.HoodieAvroPayload;
-import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieIndexRecord;
-import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.util.Option;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
@@ -179,8 +175,8 @@ public abstract class TestHoodieReaderWriterBase {
       record.put("_row_key", key);
       record.put("time", Integer.toString(i));
       record.put("number", i);
-      HoodieRecord avroRecord = new HoodieAvroRecord<>(new HoodieKey(key, ""), new HoodieAvroPayload(Option.of(record)));
-      writer.write(avroRecord, avroSchema);
+      HoodieRecord avroRecord = new HoodieIndexRecord(record);
+      writer.write(key, avroRecord, avroSchema);
     }
     writer.close();
   }

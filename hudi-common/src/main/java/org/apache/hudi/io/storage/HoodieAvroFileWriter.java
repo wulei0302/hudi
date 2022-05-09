@@ -19,6 +19,8 @@
 package org.apache.hudi.io.storage;
 
 import org.apache.hudi.avro.HoodieAvroUtils;
+import org.apache.hudi.common.model.HoodieAvroRecord;
+import org.apache.hudi.common.model.HoodieIndexRecord;
 import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordPayload;
@@ -42,15 +44,21 @@ public interface HoodieAvroFileWriter extends HoodieFileWriter {
   void writeAvro(String recordKey, IndexedRecord record) throws IOException;
 
   @Override
-  default void writeWithMetadata(HoodieRecord record, Schema schema, Properties props) throws IOException {
+  default void writeWithMetadata(HoodieKey key, HoodieRecord record, Schema schema, Properties props) throws IOException {
     IndexedRecord avroPayload = (IndexedRecord) ((HoodieRecordPayload) record.getData()).getInsertValue(schema, props).get();
-    writeAvroWithMetadata(record.getKey(), avroPayload);
+    writeAvroWithMetadata(key, avroPayload);
   }
 
   @Override
-  default void write(HoodieRecord record, Schema schema, Properties props) throws IOException {
-    IndexedRecord avroPayload = (IndexedRecord) ((HoodieRecordPayload) record.getData()).getInsertValue(schema, props).get();
-    writeAvro(record.getKey().getRecordKey(), avroPayload);
+  default void write(String recordKey, HoodieRecord record, Schema schema, Properties props) throws IOException {
+    IndexedRecord avroPayload = null;
+    if (record instanceof HoodieAvroRecord) {
+      avroPayload = (IndexedRecord) ((HoodieRecordPayload) record.getData()).getInsertValue(schema, props).get();
+    } else if (record instanceof HoodieIndexRecord) {
+      avroPayload = ((HoodieIndexRecord) record).getData();
+    }
+
+    writeAvro(recordKey, avroPayload);
   }
 
   default void prepRecordWithMetadata(HoodieKey key, IndexedRecord avroRecord, String instantTime, Integer partitionId, AtomicLong recordIndex, String fileName) {

@@ -20,6 +20,7 @@ package org.apache.hudi.avro;
 
 import org.apache.hudi.common.config.SerializableSchema;
 import org.apache.hudi.common.model.HoodieAvroRecord;
+import org.apache.hudi.common.model.HoodieIndexRecord;
 import org.apache.hudi.common.model.HoodieOperation;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.util.Option;
@@ -110,6 +111,8 @@ public class HoodieAvroUtils {
   public static Option<byte[]> recordToBytes(HoodieRecord record, Schema schema) throws IOException {
     if (record instanceof HoodieAvroRecord) {
       return ((HoodieAvroRecord<?>) record).asAvro(schema).map(HoodieAvroUtils::indexedRecordToBytes);
+    } else if (record instanceof HoodieIndexRecord) {
+      return Option.of(HoodieAvroUtils.indexedRecordToBytes(((HoodieIndexRecord) record).getData()));
     }
 
     throw new UnsupportedOperationException(String.format("Unsupported type of record (%s)", record.getClass()));

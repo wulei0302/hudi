@@ -25,6 +25,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.client.utils.MergingIterator;
 import org.apache.hudi.common.model.HoodieBaseFile;
+import org.apache.hudi.common.model.HoodieIndexRecord;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.table.HoodieTableConfig;
 import org.apache.hudi.common.util.Option;
@@ -82,11 +83,9 @@ public abstract class BaseMergeHelper<T, I, K, O> {
       bootstrapReadSchema = mergeHandle.getWriterSchema();
     }
 
-    HoodieRecord.Mapper recordMapper = createHoodieRecordMapper(table, Option.empty());
-
     return new MergingIterator<>(
-        reader.getRecordIterator(readerSchema, recordMapper),
-        bootstrapReader.getRecordIterator(bootstrapReadSchema, recordMapper),
+        reader.getRecordIterator(readerSchema, HoodieIndexRecord::new),
+        bootstrapReader.getRecordIterator(bootstrapReadSchema, HoodieIndexRecord::new),
         (oneRecord, otherRecord) -> mergeRecords(oneRecord, otherRecord, readerSchema, mergeHandle.getWriterSchemaWithMetaFields()));
   }
 

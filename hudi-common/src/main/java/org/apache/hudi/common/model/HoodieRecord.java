@@ -267,7 +267,7 @@ public abstract class HoodieRecord<T> implements Serializable {
 
   // NOTE: This method is assuming semantic that only records bearing the same (partition, key) could
   //       be combined
-  public abstract Option<HoodieRecord<T>> combineAndGetUpdateValue(HoodieRecord previousRecord, Schema schema, Properties props) throws IOException;
+  public abstract Option<HoodieRecord> combineAndGetUpdateValue(HoodieRecord previousRecord, Schema schema, Properties props) throws IOException;
 
   public abstract HoodieRecord mergeWith(HoodieRecord other, Schema readerSchema, Schema writerSchema) throws IOException;
 

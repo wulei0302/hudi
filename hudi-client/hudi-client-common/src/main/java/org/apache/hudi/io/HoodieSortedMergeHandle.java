@@ -90,9 +90,9 @@ public class HoodieSortedMergeHandle<T, I, K, O> extends HoodieMergeHandle<T, I,
       }
       try {
         if (useWriterSchemaForCompaction) {
-          writeRecord(hoodieRecord, tableSchemaWithMetaFields, config.getProps());
+          writeRecord(hoodieRecord, Option.of(hoodieRecord), tableSchemaWithMetaFields, config.getProps());
         } else {
-          writeRecord(hoodieRecord, tableSchema, config.getProps());
+          writeRecord(hoodieRecord, Option.of(hoodieRecord), tableSchema, config.getProps());
         }
         insertRecordsWritten++;
         writtenRecordKeys.add(keyToPreWrite);
@@ -113,9 +113,9 @@ public class HoodieSortedMergeHandle<T, I, K, O> extends HoodieMergeHandle<T, I,
         HoodieRecord<T> hoodieRecord = keyToNewRecords.get(key);
         if (!writtenRecordKeys.contains(hoodieRecord.getRecordKey())) {
           if (useWriterSchemaForCompaction) {
-            writeRecord(hoodieRecord, tableSchemaWithMetaFields, config.getProps());
+            writeRecord(hoodieRecord, Option.of(hoodieRecord), tableSchemaWithMetaFields, config.getProps());
           } else {
-            writeRecord(hoodieRecord, tableSchema, config.getProps());
+            writeRecord(hoodieRecord, Option.of(hoodieRecord), tableSchema, config.getProps());
           }
           insertRecordsWritten++;
         }

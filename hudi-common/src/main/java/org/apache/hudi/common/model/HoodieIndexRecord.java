@@ -58,7 +58,7 @@ public class HoodieIndexRecord extends HoodieRecord<IndexedRecord> {
   }
 
   @Override
-  public HoodieRecord<IndexedRecord> newInstance() {
+  public HoodieRecord newInstance() {
     return null;
   }
 
@@ -68,12 +68,12 @@ public class HoodieIndexRecord extends HoodieRecord<IndexedRecord> {
   }
 
   @Override
-  public HoodieRecord<IndexedRecord> preCombine(HoodieRecord<IndexedRecord> previousRecord) {
+  public HoodieRecord preCombine(HoodieRecord<IndexedRecord> previousRecord) {
     return null;
   }
 
   @Override
-  public Option<HoodieRecord<IndexedRecord>> combineAndGetUpdateValue(HoodieRecord previousRecord, Schema schema, Properties props) throws IOException {
+  public Option<HoodieRecord> combineAndGetUpdateValue(HoodieRecord previousRecord, Schema schema, Properties props) throws IOException {
     return null;
   }
 
@@ -139,7 +139,11 @@ public class HoodieIndexRecord extends HoodieRecord<IndexedRecord> {
 
   @Override
   public boolean isIgnoredRecord(Schema schema, Properties prop) throws IOException {
-    return false;
+    if (getData().equals(SENTINEL)) {
+      return true;
+    } else {
+      return false;
+    }
   }
 
   @Override

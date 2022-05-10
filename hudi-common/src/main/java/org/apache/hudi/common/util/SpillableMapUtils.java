@@ -130,8 +130,11 @@ public class SpillableMapUtils {
                                                    boolean withOperationField,
                                                    Option<String> partitionName) {
     final String recKey = record.get(recordKeyPartitionPathFieldPair.getKey()).toString();
-    final String partitionPath = (partitionName.isPresent() ? partitionName.get() :
-        record.get(recordKeyPartitionPathFieldPair.getRight()).toString());
+    String partitionPath = "";
+    if (recordKeyPartitionPathFieldPair.getRight() != null) {
+      partitionPath = (partitionName.isPresent() ? partitionName.get() :
+          record.get(recordKeyPartitionPathFieldPair.getRight()).toString());
+    }
 
     Object preCombineVal = getPreCombineVal(record, preCombineField);
     HoodieOperation operation = withOperationField

@@ -99,7 +99,7 @@ public class HoodieAvroRecord<T extends HoodieRecordPayload> extends HoodieRecor
   // NOTE: This method is assuming semantic that only records bearing the same (partition, key) could
   //       be combined
   @Override
-  public Option<HoodieRecord<T>> combineAndGetUpdateValue(HoodieRecord previousRecord, Schema schema, Properties props) throws IOException {
+  public Option<HoodieRecord> combineAndGetUpdateValue(HoodieRecord previousRecord, Schema schema, Properties props) throws IOException {
     Option<IndexedRecord> previousRecordAvroPayload;
     if (previousRecord instanceof HoodieIndexRecord) {
       previousRecordAvroPayload = Option.of(((HoodieIndexRecord) previousRecord).getData());
@@ -111,13 +111,7 @@ public class HoodieAvroRecord<T extends HoodieRecordPayload> extends HoodieRecor
     }
 
     return getData().combineAndGetUpdateValue(previousRecordAvroPayload.get(), schema, props)
-        .map(combinedAvroPayload -> {
-          // NOTE: It's assumed that records aren't precombined more than once in its lifecycle,
-          //       therefore we simply stub out precombine value here
-          int newPreCombineVal = 0;
-          T combinedPayload = instantiateRecordPayloadWrapper(combinedAvroPayload, newPreCombineVal);
-          return new HoodieAvroRecord<>(getKey(), combinedPayload, getOperation());
-        });
+        .map(combinedAvroPayload -> new HoodieIndexRecord((IndexedRecord) combinedAvroPayload));
   }
 
   @Override

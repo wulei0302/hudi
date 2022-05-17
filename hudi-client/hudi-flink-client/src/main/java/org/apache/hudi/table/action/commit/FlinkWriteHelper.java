@@ -24,6 +24,8 @@ import org.apache.hudi.common.engine.HoodieEngineContext;
 import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieOperation;
 import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieRecordCombiningEngine;
+import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.model.WriteOperationType;
 import org.apache.hudi.exception.HoodieUpsertException;
 import org.apache.hudi.index.HoodieIndex;
@@ -87,26 +89,15 @@ public class FlinkWriteHelper<T, R> extends BaseWriteHelper<T, List<HoodieRecord
 
   @Override
   public List<HoodieRecord<T>> deduplicateRecords(
-      List<HoodieRecord<T>> records, HoodieIndex<?, ?> index, int parallelism) {
+      List<HoodieRecord<T>> records, HoodieIndex<?, ?> index, int parallelism, HoodieRecordCombiningEngine combiningEngine) {
     // If index used is global, then records are expected to differ in their partitionPath
     Map<Object, List<HoodieRecord<T>>> keyedRecords = records.stream()
         .collect(Collectors.groupingBy(record -> record.getKey().getRecordKey()));
 
     return keyedRecords.values().stream().map(x -> x.stream().reduce((rec1, rec2) -> {
-      final T data1 = rec1.getData();
-      final T data2 = rec2.getData();
-
-      @SuppressWarnings("unchecked") final HoodieRecord reducedData = rec1.preCombine(rec2);
-      // we cannot allow the user to change the key or partitionPath, since that will affect
-      // everything
-      // so pick it from one of the records.
-      boolean choosePrev = rec1 == reducedData;
-      HoodieKey reducedKey = choosePrev ? rec1.getKey() : rec2.getKey();
-      HoodieOperation operation = choosePrev ? rec1.getOperation() : rec2.getOperation();
-      HoodieRecord<T> hoodieRecord = reducedData.newInstance(reducedKey, operation);
-      // reuse the location from the first record.
-      hoodieRecord.setCurrentLocation(rec1.getCurrentLocation());
-      return hoodieRecord;
+      @SuppressWarnings("unchecked")
+      HoodieRecord<T> reducedRecord =  combiningEngine.preCombine(rec2, rec1);
+      return reducedRecord;
     }).orElse(null)).filter(Objects::nonNull).collect(Collectors.toList());
   }
 }

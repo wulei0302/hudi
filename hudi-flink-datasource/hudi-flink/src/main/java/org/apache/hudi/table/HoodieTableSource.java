@@ -412,7 +412,8 @@ public class HoodieTableSource implements
         tableAvroSchema.toString(),
         AvroSchemaConverter.convertToSchema(requiredRowType).toString(),
         inputSplits,
-        conf.getString(FlinkOptions.RECORD_KEY_FIELD).split(","));
+        conf.getString(FlinkOptions.RECORD_KEY_FIELD).split(","),
+        metaClient.getTableConfig().getCombiningEngineClass());
     return MergeOnReadInputFormat.builder()
         .config(this.conf)
         .tableState(hoodieTableState)

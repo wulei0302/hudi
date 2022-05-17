@@ -1324,6 +1324,10 @@ public class HoodieWriteConfig extends HoodieConfig {
     return getString(HoodieCompactionConfig.PAYLOAD_CLASS_NAME);
   }
 
+  public String getCombiningEngineClass() {
+    return getString(HoodieCompactionConfig.COMBINE_ENGINE_CLASS_NAME);
+  }
+
   public int getTargetPartitionsPerDayBasedCompaction() {
     return getInt(HoodieCompactionConfig.TARGET_PARTITIONS_PER_DAYBASED_COMPACTION);
   }

@@ -40,11 +40,11 @@ import java.util.Properties;
 public class HoodieAvroIndexedRecord extends HoodieRecord<IndexedRecord> {
 
   public HoodieAvroIndexedRecord(IndexedRecord data) {
-    super(null, data);
+    super(null, data, null);
   }
 
   public HoodieAvroIndexedRecord(HoodieKey key, IndexedRecord data) {
-    super(key, data);
+    super(key, data, null);
   }
 
   public HoodieAvroIndexedRecord(HoodieKey key, IndexedRecord data, HoodieOperation operation) {
@@ -68,11 +68,6 @@ public class HoodieAvroIndexedRecord extends HoodieRecord<IndexedRecord> {
   }
 
   @Override
-  public Comparable<?> getOrderingValue() {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
   public HoodieRecord newInstance() {
     throw new UnsupportedOperationException();
   }
@@ -90,16 +85,6 @@ public class HoodieAvroIndexedRecord extends HoodieRecord<IndexedRecord> {
   @Override
   public String getRecordKey(Option<BaseKeyGenerator> keyGeneratorOpt) {
     return keyGeneratorOpt.isPresent() ? keyGeneratorOpt.get().getRecordKey((GenericRecord) data) : ((GenericRecord) data).get(HoodieRecord.RECORD_KEY_METADATA_FIELD).toString();
-  }
-
-  @Override
-  public HoodieRecord preCombine(HoodieRecord<IndexedRecord> previousRecord) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public Option<HoodieRecord> combineAndGetUpdateValue(HoodieRecord previousRecord, Schema schema, Properties props) throws IOException {
-    return Option.empty();
   }
 
   @Override

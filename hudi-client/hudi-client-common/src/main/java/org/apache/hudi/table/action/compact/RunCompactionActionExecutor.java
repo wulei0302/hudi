@@ -25,8 +25,8 @@ import org.apache.hudi.common.engine.HoodieEngineContext;
 import org.apache.hudi.common.model.HoodieCommitMetadata;
 import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.model.HoodieWriteStat;
+import org.apache.hudi.common.model.WriteOperationType;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.util.CompactionUtils;
 import org.apache.hudi.common.util.Option;
@@ -44,7 +44,7 @@ import java.io.IOException;
 import java.util.List;
 
 @SuppressWarnings("checkstyle:LineLength")
-public class RunCompactionActionExecutor<T extends HoodieRecordPayload> extends
+public class RunCompactionActionExecutor<T> extends
     BaseActionExecutor<T, HoodieData<HoodieRecord<T>>, HoodieData<HoodieKey>, HoodieData<WriteStatus>, HoodieWriteMetadata<HoodieData<WriteStatus>>> {
 
   private final HoodieCompactor compactor;
@@ -99,6 +99,7 @@ public class RunCompactionActionExecutor<T extends HoodieRecordPayload> extends
         metadata.addMetadata(SerDeHelper.LATEST_SCHEMA, schemaPair.getLeft().get());
         metadata.addMetadata(HoodieCommitMetadata.SCHEMA_KEY, schemaPair.getRight().get());
       }
+      metadata.setOperationType(WriteOperationType.COMPACT);
       compactionMetadata.setWriteStatuses(statuses);
       compactionMetadata.setCommitted(false);
       compactionMetadata.setCommitMetadata(Option.of(metadata));

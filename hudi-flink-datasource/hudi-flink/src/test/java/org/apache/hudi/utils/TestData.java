@@ -21,6 +21,7 @@ package org.apache.hudi.utils;
 import org.apache.hudi.client.common.HoodieFlinkEngineContext;
 import org.apache.hudi.common.config.HoodieCommonConfig;
 import org.apache.hudi.common.fs.FSUtils;
+import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieLogFile;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.log.HoodieMergedLogRecordScanner;
@@ -64,6 +65,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -302,6 +304,24 @@ public class TestData {
         insertRow(StringData.fromString("id" + i), StringData.fromString("Danny"), 23,
             TimestampData.fromEpochMillis(i), StringData.fromString("par1"))));
     return inserts;
+  }
+
+  public static List<RowData> filterOddRows(List<RowData> rows) {
+    return filterRowsByIndexPredicate(rows, i -> i % 2 != 0);
+  }
+
+  public static List<RowData> filterEvenRows(List<RowData> rows) {
+    return filterRowsByIndexPredicate(rows, i -> i % 2 == 0);
+  }
+
+  private static List<RowData> filterRowsByIndexPredicate(List<RowData> rows, Predicate<Integer> predicate) {
+    List<RowData> filtered = new ArrayList<>();
+    for (int i = 0; i < rows.size(); i++) {
+      if (predicate.test(i)) {
+        filtered.add(rows.get(i));
+      }
+    }
+    return filtered;
   }
 
   private static Integer toIdSafely(Object id) {
@@ -651,7 +671,7 @@ public class TestData {
           .map(hoodieRecord -> {
             try {
               // in case it is a delete
-              GenericRecord record = (GenericRecord) hoodieRecord.getData()
+              GenericRecord record = (GenericRecord) ((HoodieAvroRecord)hoodieRecord).getData()
                   .getInsertValue(schema, new Properties())
                   .orElse(null);
               return record == null ? (String) null : filterOutVariables(record);

@@ -67,7 +67,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.apache.hudi.io.storage.HoodieHFileReader.SCHEMA_KEY;
+import static org.apache.hudi.io.storage.HoodieAvroHFileReader.SCHEMA_KEY;
 
 /**
  * Utility methods to aid testing inside the HoodieClient module.
@@ -109,7 +109,7 @@ public class HoodieClientTestUtils {
     for (HoodieInstant commit : commitsToReturn) {
       HoodieCommitMetadata metadata =
           HoodieCommitMetadata.fromBytes(commitTimeline.getInstantDetails(commit).get(), HoodieCommitMetadata.class);
-      fileIdToFullPath.putAll(metadata.getFileIdAndFullPaths(basePath));
+      fileIdToFullPath.putAll(metadata.getFileIdAndFullPaths(new Path(basePath)));
     }
     return fileIdToFullPath;
   }

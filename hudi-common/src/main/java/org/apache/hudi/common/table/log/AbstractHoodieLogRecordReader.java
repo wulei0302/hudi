@@ -19,7 +19,6 @@
 package org.apache.hudi.common.table.log;
 
 import org.apache.hudi.common.model.DeleteRecord;
-import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieLogFile;
 import org.apache.hudi.common.model.HoodieRecord;
@@ -27,6 +26,7 @@ import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.table.HoodieTableConfig;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.log.block.HoodieAvroDataBlock;
+import org.apache.hudi.common.table.log.block.HoodieAvroDataBlock.RecordIterator;
 import org.apache.hudi.common.table.log.block.HoodieCommandBlock;
 import org.apache.hudi.common.table.log.block.HoodieDataBlock;
 import org.apache.hudi.common.table.log.block.HoodieDeleteBlock;
@@ -61,6 +61,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -95,6 +96,8 @@ public abstract class AbstractHoodieLogRecordReader {
   private final String payloadClassFQN;
   // preCombine field
   private final String preCombineField;
+  // Stateless component for merging records
+  private final String mergeClassFQN;
   // simple key gen fields
   private Option<Pair<String, String>> simpleKeyGenFields = Option.empty();
   // Log File Paths
@@ -159,6 +162,7 @@ public abstract class AbstractHoodieLogRecordReader {
     HoodieTableConfig tableConfig = this.hoodieTableMetaClient.getTableConfig();
     this.payloadClassFQN = tableConfig.getPayloadClass();
     this.preCombineField = tableConfig.getPreCombineField();
+    this.mergeClassFQN = tableConfig.getMergeClass();
     this.totalLogFiles.addAndGet(logFilePaths.size());
     this.logFilePaths = logFilePaths;
     this.reverseReader = reverseReader;
@@ -376,13 +380,22 @@ public abstract class AbstractHoodieLogRecordReader {
    * handle it.
    */
   private void processDataBlock(HoodieDataBlock dataBlock, Option<KeySpec> keySpecOpt) throws Exception {
-    try (ClosableIterator<IndexedRecord> recordIterator = getRecordsIterator(dataBlock, keySpecOpt)) {
+    HoodieRecord.Mapper mapper = (rec) -> createHoodieRecord(rec, this.hoodieTableMetaClient.getTableConfig(),
+        this.payloadClassFQN, this.preCombineField, this.withOperationField, this.simpleKeyGenFields, this.partitionName);
+
+    try (ClosableIterator<HoodieRecord> recordIterator = getRecordsIterator(dataBlock, keySpecOpt, mapper)) {
       Option<Schema> schemaOption = getMergedSchema(dataBlock);
+      Schema finalReadSchema;
+      if (recordIterator instanceof RecordIterator) {
+        finalReadSchema = ((RecordIterator) recordIterator).getFinalReadSchema();
+      } else {
+        finalReadSchema = dataBlock.getSchema();
+      }
       while (recordIterator.hasNext()) {
-        IndexedRecord currentRecord = recordIterator.next();
-        IndexedRecord record = schemaOption.isPresent() ? HoodieAvroUtils.rewriteRecordWithNewSchema(currentRecord, schemaOption.get(), new HashMap<>()) : currentRecord;
-        processNextRecord(createHoodieRecord(record, this.hoodieTableMetaClient.getTableConfig(), this.payloadClassFQN,
-            this.preCombineField, this.withOperationField, this.simpleKeyGenFields, this.partitionName));
+        HoodieRecord currentRecord = recordIterator.next();
+        HoodieRecord record = schemaOption.isPresent()
+            ? currentRecord.rewriteRecordWithNewSchema(finalReadSchema, new Properties(), schemaOption.get(), new HashMap<>(), mapper) : currentRecord;
+        processNextRecord(record);
         totalLogRecords.incrementAndGet();
       }
     }
@@ -483,13 +496,13 @@ public abstract class AbstractHoodieLogRecordReader {
     progress = numLogFilesSeen - 1 / logFilePaths.size();
   }
 
-  private ClosableIterator<IndexedRecord> getRecordsIterator(HoodieDataBlock dataBlock, Option<KeySpec> keySpecOpt) throws IOException {
+  private ClosableIterator<HoodieRecord> getRecordsIterator(HoodieDataBlock dataBlock, Option<KeySpec> keySpecOpt, HoodieRecord.Mapper mapper) throws IOException {
     if (keySpecOpt.isPresent()) {
       KeySpec keySpec = keySpecOpt.get();
-      return dataBlock.getRecordIterator(keySpec.keys, keySpec.fullKey);
+      return dataBlock.getRecordIterator(keySpec.keys, keySpec.fullKey, mapper);
     }
 
-    return dataBlock.getRecordIterator();
+    return dataBlock.getRecordIterator(mapper);
   }
 
   /**
@@ -513,6 +526,10 @@ public abstract class AbstractHoodieLogRecordReader {
 
   protected String getPayloadClassFQN() {
     return payloadClassFQN;
+  }
+
+  protected String getMergeClassFQN() {
+    return mergeClassFQN;
   }
 
   public Option<String> getPartitionName() {

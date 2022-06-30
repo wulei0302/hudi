@@ -25,21 +25,21 @@ import org.apache.hadoop.fs.Path
 import org.apache.hadoop.mapred.JobConf
 import org.apache.hudi.HoodieConversionUtils.{toJavaOption, toScalaOption}
 import org.apache.hudi.HoodieMergeOnReadRDD.{AvroDeserializerSupport, collectFieldOrdinals, getPartitionPath, projectAvro, projectAvroUnsafe, projectRowUnsafe, resolveAvroSchemaNullability}
-import org.apache.hudi.MergeOnReadSnapshotRelation.getFilePath
-import org.apache.hudi.common.config.HoodieMetadataConfig
+import org.apache.hudi.common.config.{HoodieCommonConfig, HoodieMetadataConfig}
 import org.apache.hudi.common.engine.HoodieLocalEngineContext
 import org.apache.hudi.common.fs.FSUtils
 import org.apache.hudi.common.fs.FSUtils.getRelativePartitionPath
-import org.apache.hudi.common.model.{HoodieLogFile, HoodieRecord, HoodieRecordPayload, OverwriteWithLatestAvroPayload}
+import org.apache.hudi.common.model.{HoodieAvroIndexedRecord, HoodieLogFile, HoodieRecord, HoodieRecordPayload, OverwriteWithLatestAvroPayload}
 import org.apache.hudi.common.table.log.HoodieMergedLogRecordScanner
+import org.apache.hudi.common.util.HoodieRecordUtils
 import org.apache.hudi.common.util.ValidationUtils.checkState
 import org.apache.hudi.config.HoodiePayloadConfig
 import org.apache.hudi.exception.HoodieException
 import org.apache.hudi.hadoop.config.HoodieRealtimeConfig
 import org.apache.hudi.hadoop.utils.HoodieRealtimeRecordReaderUtils.getMaxCompactionMemoryInBytes
+import org.apache.hudi.internal.schema.InternalSchema
 import org.apache.hudi.metadata.HoodieTableMetadata.getDataTableBasePathFromMetadataTable
 import org.apache.hudi.metadata.{HoodieBackedTableMetadata, HoodieTableMetadata}
-import org.apache.hudi.internal.schema.InternalSchema
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.avro.HoodieAvroDeserializer
 import org.apache.spark.sql.catalyst.InternalRow
@@ -47,7 +47,6 @@ import org.apache.spark.sql.catalyst.expressions.{SpecificInternalRow, UnsafePro
 import org.apache.spark.sql.execution.datasources.PartitionedFile
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.{Partition, SerializableWritable, SparkContext, TaskContext}
-
 import java.io.Closeable
 import java.util.Properties
 import scala.annotation.tailrec
@@ -180,13 +179,13 @@ class HoodieMergeOnReadRDD(@transient sc: SparkContext,
     protected lazy val logRecordsIterator: Iterator[Option[GenericRecord]] =
       logRecords.iterator.map {
         case (_, record) =>
-          val avroRecordOpt = toScalaOption(record.getData.getInsertValue(logFileReaderAvroSchema, payloadProps))
+          val avroRecordOpt = toScalaOption(record.toIndexedRecord(logFileReaderAvroSchema, payloadProps))
           avroRecordOpt.map {
             avroRecord => projectAvroUnsafe(avroRecord, requiredAvroSchema, requiredSchemaFieldOrdinals, recordBuilder)
           }
       }
 
-    protected def removeLogRecord(key: String): Option[HoodieRecord[_ <: HoodieRecordPayload[_]]] =
+    protected def removeLogRecord(key: String): Option[HoodieRecord[_]] =
       logRecords.remove(key)
 
     override def hasNext: Boolean = hasNextInternal
@@ -263,6 +262,7 @@ class HoodieMergeOnReadRDD(@transient sc: SparkContext,
       baseFileReaderAvroSchema, resolveAvroSchemaNullability(baseFileReaderAvroSchema))
 
     private val recordKeyOrdinal = baseFileReaderSchema.structTypeSchema.fieldIndex(tableState.recordKeyField)
+    private val merge = HoodieRecordUtils.loadMerge(tableState.mergeClass)
 
     override def hasNext: Boolean = hasNextInternal
 
@@ -279,7 +279,7 @@ class HoodieMergeOnReadRDD(@transient sc: SparkContext,
           recordToLoad = unsafeProjection(projectRowUnsafe(curRowRecord, requiredSchema.structTypeSchema, requiredSchemaFieldOrdinals))
           true
         } else {
-          val mergedAvroRecordOpt = merge(serialize(curRowRecord), updatedRecordOpt.get)
+          val mergedAvroRecordOpt = merge(serialize(curRowRecord), updatedRecordOpt.get.asInstanceOf[HoodieRecord[_ <: HoodieRecordPayload[_]]])
           if (mergedAvroRecordOpt.isEmpty) {
             // Record has been deleted, skipping
             this.hasNextInternal
@@ -305,7 +305,12 @@ class HoodieMergeOnReadRDD(@transient sc: SparkContext,
     private def merge(curAvroRecord: GenericRecord, newRecord: HoodieRecord[_ <: HoodieRecordPayload[_]]): Option[IndexedRecord] = {
       // NOTE: We have to pass in Avro Schema used to read from Delta Log file since we invoke combining API
       //       on the record from the Delta Log
-      toScalaOption(newRecord.getData.combineAndGetUpdateValue(curAvroRecord, logFileReaderAvroSchema, payloadProps))
+      val combinedRecord = merge.combineAndGetUpdateValue(new HoodieAvroIndexedRecord(curAvroRecord), newRecord, logFileReaderAvroSchema, payloadProps)
+      if (combinedRecord.isPresent) {
+        toScalaOption(combinedRecord.get.asInstanceOf[HoodieAvroIndexedRecord].toIndexedRecord)
+      } else {
+        Option.empty
+      }
     }
   }
 }
@@ -324,7 +329,8 @@ private object HoodieMergeOnReadRDD {
     val fs = FSUtils.getFs(tablePath, hadoopConf)
 
     if (HoodieTableMetadata.isMetadataTable(tablePath)) {
-      val metadataConfig = tableState.metadataConfig
+      val metadataConfig = HoodieMetadataConfig.newBuilder()
+        .fromProperties(tableState.metadataConfig.getProps).enable(true).build()
       val dataTableBasePath = getDataTableBasePathFromMetadataTable(tablePath)
       val metadataTable = new HoodieBackedTableMetadata(
         new HoodieLocalEngineContext(hadoopConf), metadataConfig,
@@ -361,7 +367,12 @@ private object HoodieMergeOnReadRDD {
         .withSpillableMapBasePath(
           hadoopConf.get(HoodieRealtimeConfig.SPILLABLE_MAP_BASE_PATH_PROP,
             HoodieRealtimeConfig.DEFAULT_SPILLABLE_MAP_BASE_PATH))
-
+        .withDiskMapType(
+          hadoopConf.getEnum(HoodieCommonConfig.SPILLABLE_DISK_MAP_TYPE.key,
+            HoodieCommonConfig.SPILLABLE_DISK_MAP_TYPE.defaultValue))
+        .withBitCaskDiskMapCompressionEnabled(
+          hadoopConf.getBoolean(HoodieCommonConfig.DISK_MAP_BITCASK_COMPRESSION_ENABLED.key(),
+          HoodieCommonConfig.DISK_MAP_BITCASK_COMPRESSION_ENABLED.defaultValue()))
       if (logFiles.nonEmpty) {
         logRecordScannerBuilder.withPartition(
           getRelativePartitionPath(new Path(tableState.tablePath), logFiles.head.getPath.getParent))

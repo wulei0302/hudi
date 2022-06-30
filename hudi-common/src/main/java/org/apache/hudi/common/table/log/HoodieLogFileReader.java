@@ -76,7 +76,7 @@ public class HoodieLogFileReader implements HoodieLogFormat.Reader {
   private final HoodieLogFile logFile;
   private final byte[] magicBuffer = new byte[6];
   private final Schema readerSchema;
-  private InternalSchema internalSchema = InternalSchema.getEmptyInternalSchema();
+  private InternalSchema internalSchema;
   private final String keyField;
   private boolean readBlockLazily;
   private long reverseLogFilePosition;
@@ -267,7 +267,7 @@ public class HoodieLogFileReader implements HoodieLogFormat.Reader {
   private boolean isBlockCorrupted(int blocksize) throws IOException {
     long currentPos = inputStream.getPos();
     long blockSizeFromFooter;
-    
+
     try {
       // check if the blocksize mentioned in the footer is the same as the header;
       // by seeking and checking the length of a long.  We do not seek `currentPos + blocksize`

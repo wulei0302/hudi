@@ -32,6 +32,7 @@ import org.apache.hudi.common.bootstrap.index.HFileBootstrapIndex;
 import org.apache.hudi.common.config.HoodieConfig;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.fs.FSUtils;
+import org.apache.hudi.common.model.HoodieAvroRecordMerge;
 import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.common.model.OverwriteWithLatestAvroPayload;
 import org.apache.hudi.common.model.WriteOperationType;
@@ -270,6 +271,10 @@ public class HoodieDeltaStreamer implements Serializable {
         + "a GenericRecord. Implement your own, if you want to do something other than overwriting existing value")
     public String payloadClassName = OverwriteWithLatestAvroPayload.class.getName();
 
+    @Parameter(names = {"--merge-class"}, description = "Implements of HoodieMerge, that defines how to merge two records."
+        + "Implement your own, if you want to implement specific record merge logic.")
+    public String mergeClassName = HoodieAvroRecordMerge.class.getName();
+
     @Parameter(names = {"--schemaprovider-class"}, description = "subclass of org.apache.hudi.utilities.schema"
         + ".SchemaProvider to attach schemas to input & target table data, built in options: "
         + "org.apache.hudi.utilities.schema.FilebasedSchemaProvider."
@@ -306,7 +311,7 @@ public class HoodieDeltaStreamer implements Serializable {
     public Boolean enableMetaSync = false;
 
     @Parameter(names = {"--sync-tool-classes"}, description = "Meta sync client tool, using comma to separate multi tools")
-    public String syncClientToolClass = HiveSyncTool.class.getName();
+    public String syncClientToolClassNames = HiveSyncTool.class.getName();
 
     @Parameter(names = {"--max-pending-compactions"},
         description = "Maximum number of outstanding inflight/requested compactions. Delta Sync will not happen unless"
@@ -442,6 +447,8 @@ public class HoodieDeltaStreamer implements Serializable {
               && operation == config.operation
               && Objects.equals(filterDupes, config.filterDupes)
               && Objects.equals(enableHiveSync, config.enableHiveSync)
+              && Objects.equals(enableMetaSync, config.enableMetaSync)
+              && Objects.equals(syncClientToolClassNames, config.syncClientToolClassNames)
               && Objects.equals(maxPendingCompactions, config.maxPendingCompactions)
               && Objects.equals(maxPendingClustering, config.maxPendingClustering)
               && Objects.equals(continuousMode, config.continuousMode)
@@ -466,8 +473,8 @@ public class HoodieDeltaStreamer implements Serializable {
               baseFileFormat, propsFilePath, configs, sourceClassName,
               sourceOrderingField, payloadClassName, schemaProviderClassName,
               transformerClassNames, sourceLimit, operation, filterDupes,
-              enableHiveSync, maxPendingCompactions, maxPendingClustering, continuousMode,
-              minSyncIntervalSeconds, sparkMaster, commitOnErrors,
+              enableHiveSync, enableMetaSync, syncClientToolClassNames, maxPendingCompactions, maxPendingClustering,
+              continuousMode, minSyncIntervalSeconds, sparkMaster, commitOnErrors,
               deltaSyncSchedulingWeight, compactSchedulingWeight, clusterSchedulingWeight, deltaSyncSchedulingMinShare,
               compactSchedulingMinShare, clusterSchedulingMinShare, forceDisableCompaction, checkpoint,
               initialCheckpointProvider, help);
@@ -491,6 +498,8 @@ public class HoodieDeltaStreamer implements Serializable {
               + ", operation=" + operation
               + ", filterDupes=" + filterDupes
               + ", enableHiveSync=" + enableHiveSync
+              + ", enableMetaSync=" + enableMetaSync
+              + ", syncClientToolClassNames=" + syncClientToolClassNames
               + ", maxPendingCompactions=" + maxPendingCompactions
               + ", maxPendingClustering=" + maxPendingClustering
               + ", continuousMode=" + continuousMode

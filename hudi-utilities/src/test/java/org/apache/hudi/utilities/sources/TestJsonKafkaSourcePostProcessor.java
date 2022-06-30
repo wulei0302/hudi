@@ -178,6 +178,12 @@ public class TestJsonKafkaSourcePostProcessor extends TestJsonKafkaSource {
         + "\"name\":\"andy\",\"age\":17,\"insert_time\":\"2022-03-12 08:31:56\","
         + "\"update_time\":\"2022-03-12 08:31:56\"}}";
 
+    // database hudi_02, table hudi_maxwell_01, insert
+    String hudi02Maxwell01Insert = "{\"database\":\"hudi_02\",\"table\":\"hudi_maxwell_01\",\"type\":\"insert\","
+        + "\"ts\":1647073916,\"xid\":4990,\"commit\":true,\"data\":{\"id\":\"9bb17f316ee8488cb107621ddf0f3cb0\","
+        + "\"name\":\"andy\",\"age\":17,\"insert_time\":\"2022-03-12 08:31:56\","
+        + "\"update_time\":\"2022-03-12 08:31:56\"}}";
+
     // ------------------------------------------------------------------------
     //  Tests
     // ------------------------------------------------------------------------
@@ -194,7 +200,7 @@ public class TestJsonKafkaSourcePostProcessor extends TestJsonKafkaSource {
       // database name should be null
       JsonNode database = record.get("database");
       // insert and update records should be tagged as no delete
-      boolean isDelete = record.get(HoodieRecord.HOODIE_IS_DELETED).booleanValue();
+      boolean isDelete = record.get(HoodieRecord.HOODIE_IS_DELETED_FIELD).booleanValue();
 
       assertFalse(isDelete);
       assertNull(database);
@@ -214,7 +220,7 @@ public class TestJsonKafkaSourcePostProcessor extends TestJsonKafkaSource {
         .process(inputDelete).map(mapper::readTree).foreach(record -> {
 
           // delete records should be tagged as delete
-          boolean isDelete = record.get(HoodieRecord.HOODIE_IS_DELETED).booleanValue();
+          boolean isDelete = record.get(HoodieRecord.HOODIE_IS_DELETED_FIELD).booleanValue();
           // update_time should equals ts
           String updateTime = record.get("update_time").textValue();
 
@@ -248,6 +254,14 @@ public class TestJsonKafkaSourcePostProcessor extends TestJsonKafkaSource {
     // ddl data will be ignored, ths count should be 0
     long ddlDataNum = processor.process(ddlData).count();
     assertEquals(0, ddlDataNum);
+
+    // test table regex without database regex
+    props.remove(MaxwellJsonKafkaSourcePostProcessor.Config.DATABASE_NAME_REGEX_PROP.key());
+    props.setProperty(MaxwellJsonKafkaSourcePostProcessor.Config.TABLE_NAME_REGEX_PROP.key(), "hudi_maxwell(_)?[0-9]{0,2}");
+
+    JavaRDD<String> dataWithoutDatabaseRegex = jsc().parallelize(Arrays.asList(hudiMaxwell01Insert, hudi02Maxwell01Insert));
+    long countWithoutDatabaseRegex = processor.process(dataWithoutDatabaseRegex).count();
+    assertEquals(2, countWithoutDatabaseRegex);
   }
 
   /**

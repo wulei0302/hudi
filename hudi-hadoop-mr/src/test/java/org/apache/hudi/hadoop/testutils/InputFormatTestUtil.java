@@ -21,6 +21,7 @@ package org.apache.hudi.hadoop.testutils;
 import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.model.HoodieFileFormat;
+import org.apache.hudi.common.model.HoodieAvroIndexedRecord;
 import org.apache.hudi.common.model.HoodieLogFile;
 import org.apache.hudi.common.model.HoodiePartitionMetadata;
 import org.apache.hudi.common.model.HoodieRecord;
@@ -71,16 +72,35 @@ public class InputFormatTestUtil {
   private static String TEST_WRITE_TOKEN = "1-0-1";
 
   public static File prepareTable(java.nio.file.Path basePath, HoodieFileFormat baseFileFormat, int numberOfFiles,
-                                  String commitNumber)
+                                  String commitNumber) throws IOException {
+    return prepareCustomizedTable(basePath, baseFileFormat, numberOfFiles, commitNumber, false, true, false, null);
+  }
+
+  public static File prepareCustomizedTable(java.nio.file.Path basePath, HoodieFileFormat baseFileFormat, int numberOfFiles,
+                                  String commitNumber, boolean useNonPartitionedKeyGen, boolean populateMetaFields, boolean injectData, Schema schema)
       throws IOException {
-    HoodieTestUtils.init(HoodieTestUtils.getDefaultHadoopConf(), basePath.toString(), HoodieTableType.COPY_ON_WRITE,
-        baseFileFormat);
+    if (useNonPartitionedKeyGen) {
+      HoodieTestUtils.init(HoodieTestUtils.getDefaultHadoopConf(), basePath.toString(), HoodieTableType.COPY_ON_WRITE,
+          baseFileFormat, true, "org.apache.hudi.keygen.NonpartitionedKeyGenerator", populateMetaFields);
+    } else {
+      HoodieTestUtils.init(HoodieTestUtils.getDefaultHadoopConf(), basePath.toString(), HoodieTableType.COPY_ON_WRITE,
+          baseFileFormat);
+    }
 
     java.nio.file.Path partitionPath = basePath.resolve(Paths.get("2016", "05", "01"));
     setupPartition(basePath, partitionPath);
 
-    return simulateInserts(partitionPath.toFile(), baseFileFormat.getFileExtension(), "fileId1", numberOfFiles,
-        commitNumber);
+    if (injectData) {
+      try {
+        createSimpleData(schema, partitionPath, numberOfFiles, 100, commitNumber);
+        return partitionPath.toFile();
+      } catch (Exception e) {
+        throw new IOException("Excpetion thrown while writing data ", e);
+      }
+    } else {
+      return simulateInserts(partitionPath.toFile(), baseFileFormat.getFileExtension(), "fileId1", numberOfFiles,
+          commitNumber);
+    }
   }
 
   public static File prepareMultiPartitionTable(java.nio.file.Path basePath, HoodieFileFormat baseFileFormat, int numberOfFiles,
@@ -373,13 +393,14 @@ public class InputFormatTestUtil {
     header.put(HoodieLogBlock.HeaderMetadataType.INSTANT_TIME, newCommit);
     header.put(HoodieLogBlock.HeaderMetadataType.SCHEMA, writeSchema.toString());
     HoodieDataBlock dataBlock = null;
+    List<HoodieRecord> hoodieRecords = records.stream().map(HoodieAvroIndexedRecord::new).collect(Collectors.toList());
     if (logBlockType == HoodieLogBlock.HoodieLogBlockType.HFILE_DATA_BLOCK) {
       dataBlock = new HoodieHFileDataBlock(
-          records, header, Compression.Algorithm.GZ, writer.getLogFile().getPath());
+          hoodieRecords, header, Compression.Algorithm.GZ, writer.getLogFile().getPath());
     } else if (logBlockType == HoodieLogBlock.HoodieLogBlockType.PARQUET_DATA_BLOCK) {
-      dataBlock = new HoodieParquetDataBlock(records, header, HoodieRecord.RECORD_KEY_METADATA_FIELD, CompressionCodecName.GZIP);
+      dataBlock = new HoodieParquetDataBlock(hoodieRecords, header, HoodieRecord.RECORD_KEY_METADATA_FIELD, CompressionCodecName.GZIP);
     } else {
-      dataBlock = new HoodieAvroDataBlock(records, header, HoodieRecord.RECORD_KEY_METADATA_FIELD);
+      dataBlock = new HoodieAvroDataBlock(hoodieRecords, header, HoodieRecord.RECORD_KEY_METADATA_FIELD);
     }
     writer.appendBlock(dataBlock);
     return writer;

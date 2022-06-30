@@ -24,10 +24,12 @@ import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieOperation;
 import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieMerge;
 import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.util.CollectionUtils;
 import org.apache.hudi.common.util.DefaultSizeEstimator;
 import org.apache.hudi.common.util.HoodieRecordSizeEstimator;
+import org.apache.hudi.common.util.HoodieRecordUtils;
 import org.apache.hudi.common.util.HoodieTimer;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.ReflectionUtils;
@@ -65,18 +67,20 @@ import static org.apache.hudi.common.util.ValidationUtils.checkState;
  */
 
 public class HoodieMergedLogRecordScanner extends AbstractHoodieLogRecordReader
-    implements Iterable<HoodieRecord<? extends HoodieRecordPayload>> {
+    implements Iterable<HoodieRecord> {
 
   private static final Logger LOG = LogManager.getLogger(HoodieMergedLogRecordScanner.class);
   // A timer for calculating elapsed time in millis
   public final HoodieTimer timer = new HoodieTimer();
   // Final map of compacted/merged records
-  protected final ExternalSpillableMap<String, HoodieRecord<? extends HoodieRecordPayload>> records;
+  protected final ExternalSpillableMap<String, HoodieRecord> records;
   // count of merged records in log
   private long numMergedRecordsInLog;
   private long maxMemorySizeInBytes;
   // Stores the total time taken to perform reading and merging of log blocks
   private long totalTimeTakenToReadAndMergeBlocks;
+
+  private final HoodieMerge merge;
 
   @SuppressWarnings("unchecked")
   protected HoodieMergedLogRecordScanner(FileSystem fs, String basePath, List<String> logFilePaths, Schema readerSchema,
@@ -95,6 +99,7 @@ public class HoodieMergedLogRecordScanner extends AbstractHoodieLogRecordReader
       this.records = new ExternalSpillableMap<>(maxMemorySizeInBytes, spillableMapBasePath, new DefaultSizeEstimator(),
           new HoodieRecordSizeEstimator(readerSchema), diskMapType, isBitCaskDiskMapCompressionEnabled);
       this.maxMemorySizeInBytes = maxMemorySizeInBytes;
+      this.merge = HoodieRecordUtils.loadMerge(getMergeClassFQN());
     } catch (IOException e) {
       throw new HoodieIOException("IOException when creating ExternalSpillableMap at " + spillableMapBasePath, e);
     }
@@ -120,12 +125,12 @@ public class HoodieMergedLogRecordScanner extends AbstractHoodieLogRecordReader
   }
 
   @Override
-  public Iterator<HoodieRecord<? extends HoodieRecordPayload>> iterator() {
+  public Iterator<HoodieRecord> iterator() {
     checkState(forceFullScan, "Record reader has to be in full-scan mode to use this API");
     return records.iterator();
   }
 
-  public Map<String, HoodieRecord<? extends HoodieRecordPayload>> getRecords() {
+  public Map<String, HoodieRecord> getRecords() {
     checkState(forceFullScan, "Record reader has to be in full-scan mode to use this API");
     return records;
   }
@@ -142,7 +147,7 @@ public class HoodieMergedLogRecordScanner extends AbstractHoodieLogRecordReader
   }
 
   @Override
-  protected void processNextRecord(HoodieRecord<? extends HoodieRecordPayload> hoodieRecord) throws IOException {
+  protected void processNextRecord(HoodieRecord hoodieRecord) throws IOException {
     String key = hoodieRecord.getRecordKey();
     if (records.containsKey(key)) {
       // Merge and store the merged record. The HoodieRecordPayload implementation is free to decide what should be
@@ -150,7 +155,7 @@ public class HoodieMergedLogRecordScanner extends AbstractHoodieLogRecordReader
 
       HoodieRecord<? extends HoodieRecordPayload> oldRecord = records.get(key);
       HoodieRecordPayload oldValue = oldRecord.getData();
-      HoodieRecordPayload combinedValue = hoodieRecord.getData().preCombine(oldValue);
+      HoodieRecordPayload combinedValue = (HoodieRecordPayload) merge.preCombine(oldRecord, hoodieRecord).getData();
       // If combinedValue is oldValue, no need rePut oldRecord
       if (combinedValue != oldValue) {
         HoodieOperation operation = hoodieRecord.getOperation();
@@ -171,7 +176,7 @@ public class HoodieMergedLogRecordScanner extends AbstractHoodieLogRecordReader
       // should be deleted or be kept. The old record is kept only if the DELETE record has smaller ordering val.
       // For same ordering values, uses the natural order(arrival time semantics).
 
-      Comparable curOrderingVal = oldRecord.getData().getOrderingValue();
+      Comparable curOrderingVal = oldRecord.getOrderingValue();
       Comparable deleteOrderingVal = deleteRecord.getOrderingValue();
       // Checks the ordering value does not equal to 0
       // because we use 0 as the default value which means natural order

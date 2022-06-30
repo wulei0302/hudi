@@ -23,7 +23,6 @@ import org.apache.hudi.common.engine.TaskContextSupplier;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.model.HoodieBaseFile;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.exception.HoodieException;
@@ -50,7 +49,7 @@ import java.util.List;
  * then closes the file and rename to the old file name,
  * behaves like the new data buffer are appended to the old file.
  */
-public class FlinkMergeAndReplaceHandle<T extends HoodieRecordPayload, I, K, O>
+public class FlinkMergeAndReplaceHandle<T, I, K, O>
     extends HoodieMergeHandle<T, I, K, O>
     implements MiniBatchHandle {
 
@@ -137,10 +136,8 @@ public class FlinkMergeAndReplaceHandle<T extends HoodieRecordPayload, I, K, O>
    * Use the writeToken + "-" + rollNumber as the new writeToken of a mini-batch write.
    */
   protected String newFileNameWithRollover(int rollNumber) {
-    // make the intermediate file as hidden
-    final String fileID = "." + this.fileId;
     return FSUtils.makeBaseFileName(instantTime, writeToken + "-" + rollNumber,
-        fileID, hoodieTable.getBaseFileExtension());
+        this.fileId, hoodieTable.getBaseFileExtension());
   }
 
   @Override

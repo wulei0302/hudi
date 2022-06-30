@@ -25,7 +25,6 @@ import org.apache.hudi.common.engine.TaskContextSupplier;
 import org.apache.hudi.config.HoodieStorageConfig;
 
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.orc.CompressionKind;
@@ -34,6 +33,7 @@ import org.apache.orc.Reader;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 import static org.apache.hudi.avro.HoodieAvroWriteSupport.HOODIE_AVRO_BLOOM_FILTER_METADATA_KEY;
 import static org.apache.hudi.avro.HoodieAvroWriteSupport.HOODIE_MAX_RECORD_KEY_FOOTER;
@@ -41,6 +41,7 @@ import static org.apache.hudi.avro.HoodieAvroWriteSupport.HOODIE_MIN_RECORD_KEY_
 import static org.apache.hudi.io.storage.HoodieOrcConfig.AVRO_SCHEMA_METADATA_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.when;
 
 public class TestHoodieOrcReaderWriter extends TestHoodieReaderWriterBase {
 
@@ -50,7 +51,7 @@ public class TestHoodieOrcReaderWriter extends TestHoodieReaderWriterBase {
   }
 
   @Override
-  protected HoodieFileWriter<GenericRecord> createWriter(
+  protected HoodieAvroOrcWriter createWriter(
       Schema avroSchema, boolean populateMetaFields) throws Exception {
     BloomFilter filter = BloomFilterFactory.createBloomFilter(1000, 0.00001, -1, BloomFilterTypeCode.SIMPLE.name());
     Configuration conf = new Configuration();
@@ -59,12 +60,15 @@ public class TestHoodieOrcReaderWriter extends TestHoodieReaderWriterBase {
     int maxFileSize = Integer.parseInt(HoodieStorageConfig.ORC_FILE_MAX_SIZE.defaultValue());
     HoodieOrcConfig config = new HoodieOrcConfig(conf, CompressionKind.ZLIB, orcStripSize, orcBlockSize, maxFileSize, filter);
     TaskContextSupplier mockTaskContextSupplier = Mockito.mock(TaskContextSupplier.class);
+    Supplier<Integer> partitionSupplier = Mockito.mock(Supplier.class);
+    when(mockTaskContextSupplier.getPartitionIdSupplier()).thenReturn(partitionSupplier);
+    when(partitionSupplier.get()).thenReturn(10);
     String instantTime = "000";
-    return new HoodieOrcWriter<>(instantTime, getFilePath(), config, avroSchema, mockTaskContextSupplier);
+    return new HoodieAvroOrcWriter(instantTime, getFilePath(), config, avroSchema, mockTaskContextSupplier);
   }
 
   @Override
-  protected HoodieFileReader<GenericRecord> createReader(
+  protected HoodieAvroFileReader createReader(
       Configuration conf) throws Exception {
     return HoodieFileReaderFactory.getFileReader(conf, getFilePath());
   }
@@ -91,10 +95,5 @@ public class TestHoodieOrcReaderWriter extends TestHoodieReaderWriterBase {
       assertEquals("struct<_row_key:string,time:string,number:int,driver:struct<driver_name:string,list:array<int>,map:map<string,string>>>",
           orcReader.getSchema().toString());
     }
-  }
-
-  @Override
-  public void testReaderFilterRowKeys() {
-    // TODO(HUDI-3682): fix filterRowKeys test for ORC due to a bug in ORC logic
   }
 }

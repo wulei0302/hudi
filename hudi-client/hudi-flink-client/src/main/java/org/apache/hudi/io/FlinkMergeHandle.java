@@ -22,7 +22,6 @@ import org.apache.hudi.client.WriteStatus;
 import org.apache.hudi.common.engine.TaskContextSupplier;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.exception.HoodieException;
@@ -51,7 +50,7 @@ import java.util.List;
  *
  * @see FlinkMergeAndReplaceHandle
  */
-public class FlinkMergeHandle<T extends HoodieRecordPayload, I, K, O>
+public class FlinkMergeHandle<T, I, K, O>
     extends HoodieMergeHandle<T, I, K, O>
     implements MiniBatchHandle {
 
@@ -158,9 +157,15 @@ public class FlinkMergeHandle<T extends HoodieRecordPayload, I, K, O>
    * Use the writeToken + "-" + rollNumber as the new writeToken of a mini-batch write.
    */
   protected String newFileNameWithRollover(int rollNumber) {
-    // make the intermediate file as hidden
     return FSUtils.makeBaseFileName(instantTime, writeToken + "-" + rollNumber,
         this.fileId, hoodieTable.getBaseFileExtension());
+  }
+
+  @Override
+  protected void setWriteStatusPath() {
+    // if there was rollover, should set up the path as the initial new file path.
+    Path path = rolloverPaths.size() > 0 ? rolloverPaths.get(0) : newFilePath;
+    writeStatus.getStat().setPath(new Path(config.getBasePath()), path);
   }
 
   @Override

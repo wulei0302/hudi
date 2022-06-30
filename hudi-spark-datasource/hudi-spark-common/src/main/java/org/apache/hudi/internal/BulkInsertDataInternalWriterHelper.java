@@ -21,8 +21,9 @@ package org.apache.hudi.internal;
 import org.apache.hudi.DataSourceWriteOptions;
 import org.apache.hudi.client.HoodieInternalWriteStatus;
 import org.apache.hudi.common.config.TypedProperties;
-import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieRecord.HoodieMetadataField;
 import org.apache.hudi.common.util.Option;
+import org.apache.hudi.common.util.PartitionPathEncodeUtils;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.exception.HoodieIOException;
 import org.apache.hudi.io.storage.row.HoodieRowCreateHandle;
@@ -123,12 +124,16 @@ public class BulkInsertDataInternalWriterHelper {
     try {
       String partitionPath = null;
       if (populateMetaFields) { // usual path where meta fields are pre populated in prep step.
-        partitionPath = String.valueOf(record.getUTF8String(HoodieRecord.PARTITION_PATH_META_FIELD_POS));
+        partitionPath = String.valueOf(record.getUTF8String(HoodieMetadataField.PARTITION_PATH_METADATA_FIELD.ordinal()));
       } else { // if meta columns are disabled.
         if (!keyGeneratorOpt.isPresent()) { // NoPartitionerKeyGen
           partitionPath = "";
         } else if (simpleKeyGen) { // SimpleKeyGen
-          partitionPath = (record.get(simplePartitionFieldIndex, simplePartitionFieldDataType)).toString();
+          Object parititionPathValue = record.get(simplePartitionFieldIndex, simplePartitionFieldDataType);
+          partitionPath = parititionPathValue != null ? parititionPathValue.toString() : PartitionPathEncodeUtils.DEFAULT_PARTITION_PATH;
+          if (writeConfig.isHiveStylePartitioningEnabled()) {
+            partitionPath = (keyGeneratorOpt.get()).getPartitionPathFields().get(0) + "=" + partitionPath;
+          }
         } else {
           // only BuiltIn key generators are supported if meta fields are disabled.
           partitionPath = keyGeneratorOpt.get().getPartitionPath(record, structType);

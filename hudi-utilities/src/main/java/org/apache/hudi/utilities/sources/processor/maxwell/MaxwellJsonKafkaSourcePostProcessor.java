@@ -22,6 +22,7 @@ import org.apache.hudi.common.config.ConfigProperty;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.util.DateTimeUtils;
+import org.apache.hudi.common.util.Option;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.utilities.exception.HoodieSourcePostProcessException;
 import org.apache.hudi.utilities.sources.processor.JsonKafkaSourcePostProcessor;
@@ -29,8 +30,6 @@ import org.apache.hudi.utilities.sources.processor.JsonKafkaSourcePostProcessor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaRDD;
 
 import java.util.Locale;
@@ -49,12 +48,15 @@ import static org.apache.hudi.utilities.sources.processor.maxwell.PreCombineFiel
  */
 public class MaxwellJsonKafkaSourcePostProcessor extends JsonKafkaSourcePostProcessor {
 
-  private static final Logger LOG = LogManager.getLogger(MaxwellJsonKafkaSourcePostProcessor.class);
-
   private static final ObjectMapper MAPPER = new ObjectMapper();
+
+  private final Option<String> databaseRegex;
+  private final String tableRegex;
 
   public MaxwellJsonKafkaSourcePostProcessor(TypedProperties props) {
     super(props);
+    databaseRegex = Option.ofNullable(props.getString(Config.DATABASE_NAME_REGEX_PROP.key(), null));
+    tableRegex = props.getString(Config.TABLE_NAME_REGEX_PROP.key());
   }
 
   // ------------------------------------------------------------------------
@@ -111,16 +113,13 @@ public class MaxwellJsonKafkaSourcePostProcessor extends JsonKafkaSourcePostProc
 
       // filter out target databases and tables
       if (isTargetTable(database, table)) {
-
-        LOG.info(String.format("Maxwell source processor starts process table : %s.%s", database, table));
-
         ObjectNode result = (ObjectNode) inputJson.get(DATA);
         String type = inputJson.get(OPERATION_TYPE).textValue();
 
         // insert or update
         if (INSERT.equals(type) || UPDATE.equals(type)) {
           // tag this record not delete.
-          result.put(HoodieRecord.HOODIE_IS_DELETED, false);
+          result.put(HoodieRecord.HOODIE_IS_DELETED_FIELD, false);
           return result.toString();
 
           // delete
@@ -139,7 +138,7 @@ public class MaxwellJsonKafkaSourcePostProcessor extends JsonKafkaSourcePostProc
 
   private String processDelete(JsonNode inputJson, ObjectNode result) {
     // tag this record as delete.
-    result.put(HoodieRecord.HOODIE_IS_DELETED, true);
+    result.put(HoodieRecord.HOODIE_IS_DELETED_FIELD, true);
 
     PreCombineFieldType preCombineFieldType =
         valueOf(this.props.getString(Config.PRECOMBINE_FIELD_TYPE_PROP.key(),
@@ -182,9 +181,11 @@ public class MaxwellJsonKafkaSourcePostProcessor extends JsonKafkaSourcePostProc
    * @param table    table the data belong to
    */
   private boolean isTargetTable(String database, String table) {
-    String databaseRegex = this.props.getString(Config.DATABASE_NAME_REGEX_PROP.key());
-    String tableRegex = this.props.getString(Config.TABLE_NAME_REGEX_PROP.key());
-    return Pattern.matches(databaseRegex, database) && Pattern.matches(tableRegex, table);
+    if (!databaseRegex.isPresent()) {
+      return Pattern.matches(tableRegex, table);
+    } else {
+      return Pattern.matches(databaseRegex.get(), database) && Pattern.matches(tableRegex, table);
+    }
   }
 
 }

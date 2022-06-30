@@ -18,12 +18,15 @@
 
 package org.apache.hudi.table.format.mor;
 
+import org.apache.hudi.common.model.HoodieAvroIndexedRecord;
 import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieOperation;
 import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieMerge;
 import org.apache.hudi.common.table.log.HoodieMergedLogRecordScanner;
 import org.apache.hudi.common.table.log.InstantRange;
 import org.apache.hudi.common.util.ClosableIterator;
+import org.apache.hudi.common.util.HoodieRecordUtils;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.configuration.FlinkOptions;
 import org.apache.hudi.configuration.HadoopConfigurations;
@@ -62,6 +65,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Properties;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -192,6 +196,7 @@ public class MergeOnReadInputFormat
           getLogFileIterator(split));
     } else if (split.getMergeType().equals(FlinkOptions.REALTIME_PAYLOAD_COMBINE)) {
       this.iterator = new MergeIterator(
+          conf,
           hadoopConf,
           split,
           this.tableState.getRowType(),
@@ -200,9 +205,9 @@ public class MergeOnReadInputFormat
           new Schema.Parser().parse(this.tableState.getRequiredAvroSchema()),
           this.requiredPos,
           this.emitDelete,
-          this.conf.getBoolean(FlinkOptions.CHANGELOG_ENABLED),
           this.tableState.getOperationPos(),
-          getFullSchemaReader(split.getBasePath().get()));
+          getFullSchemaReader(split.getBasePath().get()),
+          tableState.getMergeClass());
     } else {
       throw new HoodieException("Unable to select an Iterator to read the Hoodie MOR File Split for "
           + "file path: " + split.getBasePath()
@@ -323,7 +328,7 @@ public class MergeOnReadInputFormat
     final GenericRecordBuilder recordBuilder = new GenericRecordBuilder(requiredSchema);
     final AvroToRowDataConverters.AvroToRowDataConverter avroToRowDataConverter =
         AvroToRowDataConverters.createRowConverter(tableState.getRequiredRowType());
-    final HoodieMergedLogRecordScanner scanner = FormatUtils.logScanner(split, tableSchema, hadoopConf, conf.getBoolean(FlinkOptions.CHANGELOG_ENABLED));
+    final HoodieMergedLogRecordScanner scanner = FormatUtils.logScanner(split, tableSchema, conf, hadoopConf);
     final Iterator<String> logRecordsKeyIterator = scanner.getRecords().keySet().iterator();
     final int[] pkOffset = tableState.getPkOffsetsInRequired();
     // flag saying whether the pk semantics has been dropped by user specified
@@ -629,6 +634,8 @@ public class MergeOnReadInputFormat
 
     private final InstantRange instantRange;
 
+    private final HoodieMerge merge;
+
     // add the flag because the flink ParquetColumnarRowSplitReader is buggy:
     // method #reachedEnd() returns false after it returns true.
     // refactor it out once FLINK-22370 is resolved.
@@ -639,6 +646,7 @@ public class MergeOnReadInputFormat
     private RowData currentRecord;
 
     MergeIterator(
+        Configuration finkConf,
         org.apache.hadoop.conf.Configuration hadoopConf,
         MergeOnReadInputSplit split,
         RowType tableRowType,
@@ -647,12 +655,12 @@ public class MergeOnReadInputFormat
         Schema requiredSchema,
         int[] requiredPos,
         boolean emitDelete,
-        boolean withOperationField,
         int operationPos,
-        ParquetColumnarRowSplitReader reader) { // the reader should be with full schema
+        ParquetColumnarRowSplitReader reader, // the reader should be with full schema
+        String mergeClass) {
       this.tableSchema = tableSchema;
       this.reader = reader;
-      this.scanner = FormatUtils.logScanner(split, tableSchema, hadoopConf, withOperationField);
+      this.scanner = FormatUtils.logScanner(split, tableSchema, finkConf, hadoopConf);
       this.logKeysIterator = scanner.getRecords().keySet().iterator();
       this.requiredSchema = requiredSchema;
       this.requiredPos = requiredPos;
@@ -663,6 +671,7 @@ public class MergeOnReadInputFormat
       this.avroToRowDataConverter = AvroToRowDataConverters.createRowConverter(requiredRowType);
       this.projection = RowDataProjection.instance(requiredRowType, requiredPos);
       this.instantRange = split.getInstantRange().orElse(null);
+      this.merge = HoodieRecordUtils.loadMerge(mergeClass);
     }
 
     @Override
@@ -753,7 +762,8 @@ public class MergeOnReadInputFormat
         String curKey) throws IOException {
       final HoodieAvroRecord<?> record = (HoodieAvroRecord) scanner.getRecords().get(curKey);
       GenericRecord historyAvroRecord = (GenericRecord) rowDataToAvroConverter.convert(tableSchema, curRow);
-      return record.getData().combineAndGetUpdateValue(historyAvroRecord, tableSchema);
+      Option<HoodieRecord> resultRecord = merge.combineAndGetUpdateValue(new HoodieAvroIndexedRecord(historyAvroRecord), record, tableSchema, new Properties());
+      return ((HoodieAvroIndexedRecord) resultRecord.get()).toIndexedRecord();
     }
   }
 

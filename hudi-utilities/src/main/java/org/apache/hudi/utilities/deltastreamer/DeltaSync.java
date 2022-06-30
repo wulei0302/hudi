@@ -273,6 +273,7 @@ public class DeltaSync implements Serializable {
           .setTableName(cfg.targetTableName)
           .setArchiveLogFolder(ARCHIVELOG_FOLDER.defaultValue())
           .setPayloadClassName(cfg.payloadClassName)
+          .setMergeClassName(cfg.mergeClassName)
           .setBaseFileFormat(cfg.baseFileFormat)
           .setPartitionFields(partitionColumns)
           .setRecordKeyFields(props.getProperty(DataSourceWriteOptions.RECORDKEY_FIELD().key()))
@@ -370,6 +371,7 @@ public class DeltaSync implements Serializable {
           .setTableName(cfg.targetTableName)
           .setArchiveLogFolder(ARCHIVELOG_FOLDER.defaultValue())
           .setPayloadClassName(cfg.payloadClassName)
+          .setMergeClassName(cfg.mergeClassName)
           .setBaseFileFormat(cfg.baseFileFormat)
           .setPartitionFields(partitionColumns)
           .setRecordKeyFields(props.getProperty(DataSourceWriteOptions.RECORDKEY_FIELD().key()))
@@ -605,8 +607,6 @@ public class DeltaSync implements Serializable {
     long totalErrorRecords = writeStatusRDD.mapToDouble(WriteStatus::getTotalErrorRecords).sum().longValue();
     long totalRecords = writeStatusRDD.mapToDouble(WriteStatus::getTotalRecords).sum().longValue();
     boolean hasErrors = totalErrorRecords > 0;
-    long hiveSyncTimeMs = 0;
-    long metaSyncTimeMs = 0;
     if (!hasErrors || cfg.commitOnErrors) {
       HashMap<String, String> checkpointCommitMetadata = new HashMap<>();
       if (checkpointStr != null) {
@@ -693,7 +693,7 @@ public class DeltaSync implements Serializable {
   }
 
   private void syncMeta(HoodieDeltaStreamerMetrics metrics) {
-    Set<String> syncClientToolClasses = new HashSet<>(Arrays.asList(cfg.syncClientToolClass.split(",")));
+    Set<String> syncClientToolClasses = new HashSet<>(Arrays.asList(cfg.syncClientToolClassNames.split(",")));
     // for backward compatibility
     if (cfg.enableHiveSync) {
       cfg.enableMetaSync = true;
@@ -840,8 +840,15 @@ public class DeltaSync implements Serializable {
             && SchemaCompatibility.checkReaderWriterCompatibility(InputBatch.NULL_SCHEMA, targetSchema).getType() == SchemaCompatibility.SchemaCompatibilityType.COMPATIBLE) {
           // target schema is null. fetch schema from commit metadata and use it
           HoodieTableMetaClient meta = HoodieTableMetaClient.builder().setConf(new Configuration(fs.getConf())).setBasePath(cfg.targetBasePath).setPayloadClassName(cfg.payloadClassName).build();
-          TableSchemaResolver schemaResolver = new TableSchemaResolver(meta);
-          newWriteSchema = schemaResolver.getTableAvroSchema(false);
+          int totalCompleted = meta.getActiveTimeline().getCommitsTimeline().filterCompletedInstants().countInstants();
+          if (totalCompleted > 0) {
+            try {
+              TableSchemaResolver schemaResolver = new TableSchemaResolver(meta);
+              newWriteSchema = schemaResolver.getTableAvroSchema(false);
+            } catch (IllegalArgumentException e) {
+              LOG.warn("Could not fetch schema from table. Falling back to using target schema from schema provider");
+            }
+          }
         }
       }
       return newWriteSchema;

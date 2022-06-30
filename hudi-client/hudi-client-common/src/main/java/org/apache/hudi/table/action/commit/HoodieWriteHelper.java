@@ -21,17 +21,15 @@ package org.apache.hudi.table.action.commit;
 import org.apache.hudi.client.WriteStatus;
 import org.apache.hudi.common.data.HoodieData;
 import org.apache.hudi.common.engine.HoodieEngineContext;
-import org.apache.hudi.common.model.HoodieAvroRecord;
 import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.model.HoodieRecordPayload;
+import org.apache.hudi.common.model.HoodieMerge;
 import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.index.HoodieIndex;
 import org.apache.hudi.table.HoodieTable;
 
-public class HoodieWriteHelper<T extends HoodieRecordPayload, R> extends BaseWriteHelper<T, HoodieData<HoodieRecord<T>>,
+public class HoodieWriteHelper<T, R> extends BaseWriteHelper<T, HoodieData<HoodieRecord<T>>,
     HoodieData<HoodieKey>, HoodieData<WriteStatus>, R> {
-
   private HoodieWriteHelper() {
   }
 
@@ -51,7 +49,7 @@ public class HoodieWriteHelper<T extends HoodieRecordPayload, R> extends BaseWri
 
   @Override
   public HoodieData<HoodieRecord<T>> deduplicateRecords(
-      HoodieData<HoodieRecord<T>> records, HoodieIndex<?, ?> index, int parallelism) {
+      HoodieData<HoodieRecord<T>> records, HoodieIndex<?, ?> index, int parallelism, HoodieMerge merge) {
     boolean isIndexingGlobal = index.isGlobal();
     return records.mapToPair(record -> {
       HoodieKey hoodieKey = record.getKey();
@@ -60,10 +58,9 @@ public class HoodieWriteHelper<T extends HoodieRecordPayload, R> extends BaseWri
       return Pair.of(key, record);
     }).reduceByKey((rec1, rec2) -> {
       @SuppressWarnings("unchecked")
-      T reducedData = (T) rec2.getData().preCombine(rec1.getData());
-      HoodieKey reducedKey = rec1.getData().equals(reducedData) ? rec1.getKey() : rec2.getKey();
-
-      return new HoodieAvroRecord<>(reducedKey, reducedData);
+      HoodieRecord<T> reducedRecord =  merge.preCombine(rec1, rec2);
+      HoodieKey reducedKey = rec1.getData().equals(reducedRecord.getData()) ? rec1.getKey() : rec2.getKey();
+      return reducedRecord.newInstance(reducedKey);
     }, parallelism).map(Pair::getRight);
   }
 

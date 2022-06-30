@@ -28,7 +28,6 @@ import org.apache.hudi.common.metrics.Registry;
 import org.apache.hudi.common.model.HoodieCommitMetadata;
 import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieRecord;
-import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.model.HoodieReplaceCommitMetadata;
 import org.apache.hudi.common.model.HoodieWriteStat;
 import org.apache.hudi.common.model.TableServiceType;
@@ -70,7 +69,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @SuppressWarnings("checkstyle:LineLength")
-public class SparkRDDWriteClient<T extends HoodieRecordPayload> extends
+public class SparkRDDWriteClient<T> extends
     BaseHoodieWriteClient<T, JavaRDD<HoodieRecord<T>>, JavaRDD<HoodieKey>, JavaRDD<WriteStatus>> {
 
   private static final Logger LOG = LogManager.getLogger(SparkRDDWriteClient.class);
@@ -123,10 +122,8 @@ public class SparkRDDWriteClient<T extends HoodieRecordPayload> extends
   }
 
   @Override
-  protected HoodieTable createTable(HoodieWriteConfig config,
-                                    Configuration hadoopConf,
-                                    boolean refreshTimeline) {
-    return HoodieSparkTable.create(config, context, refreshTimeline);
+  protected HoodieTable createTable(HoodieWriteConfig config, Configuration hadoopConf) {
+    return HoodieSparkTable.create(config, context);
   }
 
   @Override
@@ -333,7 +330,7 @@ public class SparkRDDWriteClient<T extends HoodieRecordPayload> extends
 
   @Override
   protected HoodieWriteMetadata<JavaRDD<WriteStatus>> compact(String compactionInstantTime, boolean shouldComplete) {
-    HoodieSparkTable<T> table = HoodieSparkTable.create(config, context, true);
+    HoodieSparkTable<T> table = HoodieSparkTable.create(config, context);
     preWrite(compactionInstantTime, WriteOperationType.COMPACT, table.getMetaClient());
     HoodieTimeline pendingCompactionTimeline = table.getActiveTimeline().filterPendingCompactionTimeline();
     HoodieInstant inflightInstant = HoodieTimeline.getCompactionInflightInstant(compactionInstantTime);
@@ -352,12 +349,12 @@ public class SparkRDDWriteClient<T extends HoodieRecordPayload> extends
 
   @Override
   public HoodieWriteMetadata<JavaRDD<WriteStatus>> cluster(String clusteringInstant, boolean shouldComplete) {
-    HoodieSparkTable<T> table = HoodieSparkTable.create(config, context, config.isMetadataTableEnabled());
+    HoodieSparkTable<T> table = HoodieSparkTable.create(config, context);
     preWrite(clusteringInstant, WriteOperationType.CLUSTER, table.getMetaClient());
     HoodieTimeline pendingClusteringTimeline = table.getActiveTimeline().filterPendingReplaceTimeline();
     HoodieInstant inflightInstant = HoodieTimeline.getReplaceCommitInflightInstant(clusteringInstant);
     if (pendingClusteringTimeline.containsInstant(inflightInstant)) {
-      rollbackInflightClustering(inflightInstant, table);
+      table.rollbackInflightClustering(inflightInstant, commitToRollback -> getPendingRollbackInfo(table.getMetaClient(), commitToRollback, false));
       table.getMetaClient().reloadActiveTimeline();
     }
     clusteringTimer = metrics.getClusteringCtx();
@@ -434,7 +431,7 @@ public class SparkRDDWriteClient<T extends HoodieRecordPayload> extends
     }
 
     // Create a Hoodie table which encapsulated the commits and files visible
-    return HoodieSparkTable.create(config, (HoodieSparkEngineContext) context, metaClient, config.isMetadataTableEnabled());
+    return HoodieSparkTable.create(config, (HoodieSparkEngineContext) context, metaClient);
   }
 
   /**
